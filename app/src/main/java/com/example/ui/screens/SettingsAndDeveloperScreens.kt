@@ -84,11 +84,13 @@ import com.example.ui.theme.TextSecondary
 import com.example.util.PhoneControlExecutor
 import java.util.Locale
 
-// SIMPLE TOP-RIGHT SETTINGS: GEMINI API KEY + ALL PERMISSIONS + SCREEN CONTROL
+// SIMPLE TOP-RIGHT SETTINGS: GEMINI API KEY + BACKGROUND RGB LIGHT + ALL PERMISSIONS
 @Composable
 fun SettingsScreen(
     customApiKey: String = "",
     onSaveCustomApiKey: (String) -> Unit = {},
+    isBackgroundRgbActive: Boolean = false,
+    onToggleBackgroundRgb: () -> Unit = {},
     wakeState: WakeState,
     isForegroundServiceRunning: Boolean,
     memories: List<MemoryFactEntity> = emptyList(),
@@ -271,7 +273,67 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 2. 🛡️ ALL ASSISTANT & SCREEN PERMISSIONS SECTION
+        // 2. 🌈 BACKGROUND RGB LIGHT PERMISSION & ALWAYS-ON SYSTEM
+        val isOverlayGranted = permissionsList.find { it.id == "overlay" }?.isGranted == true
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            borderColor = HotPink
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🌈 Background RGB Light System",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = HotPink,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (isBackgroundRgbActive) "RUNNING 24/7 🌈" else if (isOverlayGranted) "Permission Ready ✅" else "Needs Permission ⚡",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isBackgroundRgbActive || isOverlayGranted) NeonGreen else AmberWarning,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "Isko ON karne ke baad phone ke charo corners aur border par RGB Light YouTube, WhatsApp aur Home Screen ke upar background mein lagatar chalti rahegi jab tak aap OFF na karein.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (!isOverlayGranted) {
+                NeonButton(
+                    text = "1️⃣ Allow RGB Background Permission (Overlay)",
+                    onClick = { phoneControl.openSpecialPermissionScreen("overlay") },
+                    accentColor = AmberWarning,
+                    secondaryColor = HotPink,
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "allow_rgb_overlay_perm_btn"
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            NeonButton(
+                text = if (isBackgroundRgbActive) "⏹ Turn OFF Background RGB Light"
+                else "🌈 Turn ON Background RGB Light (Always Work)",
+                onClick = onToggleBackgroundRgb,
+                accentColor = if (isBackgroundRgbActive) NeonRed else NeonGreen,
+                secondaryColor = NeonCyan,
+                modifier = Modifier.fillMaxWidth(),
+                testTag = "toggle_bg_rgb_light_btn"
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 3. 🛡️ ALL ASSISTANT & SCREEN PERMISSIONS SECTION
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
             borderColor = NeonGreen

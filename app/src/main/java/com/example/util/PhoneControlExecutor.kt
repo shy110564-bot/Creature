@@ -169,8 +169,8 @@ class PhoneControlExecutor(private val context: Context) {
             ),
             JarvisPermissionItem(
                 id = "overlay",
-                title = "🪟 Display Over Other Apps",
-                description = "Show JARVIS floating overlay & notifications anywhere",
+                title = "🌈 Background RGB Light & Overlay",
+                description = "Keep 4-Corner & Edge RGB Light running over all apps in background",
                 isGranted = canOverlay,
                 isSpecialSystemAccess = true
             ),
@@ -673,8 +673,28 @@ class PhoneControlExecutor(private val context: Context) {
 
             // 4. BROWSER & SEARCH
             is PhoneActionCommand.SearchYouTube -> {
-                val encoded = Uri.encode(command.query)
-                openUrl("https://www.youtube.com/results?search_query=$encoded")
+                val q = command.query.trim()
+                if (q.isEmpty() || q.equals("open", ignoreCase = true) || q.equals("youtube", ignoreCase = true)) {
+                    if (!tryLaunchInstalledAppByName("youtube")) {
+                        openUrl("https://www.youtube.com/")
+                    }
+                } else {
+                    // Try launching the native YouTube app directly into Search results first
+                    val ytSearchIntent = Intent(Intent.ACTION_SEARCH).apply {
+                        setPackage("com.google.android.youtube")
+                        putExtra("query", q)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    val launchedNative = runCatching {
+                        context.startActivity(ytSearchIntent)
+                        true
+                    }.getOrDefault(false)
+
+                    if (!launchedNative) {
+                        val encoded = Uri.encode(q)
+                        openUrl("https://www.youtube.com/results?search_query=$encoded")
+                    }
+                }
             }
             is PhoneActionCommand.SearchGoogle -> {
                 val encoded = Uri.encode(command.query)
@@ -863,14 +883,32 @@ class PhoneControlExecutor(private val context: Context) {
 
             is PhoneActionCommand.ScreenAction -> {
                 val a11y = JarvisAccessibilityService.instance
-                if (a11y != null) {
-                    when (command.actionType) {
-                        "CLICK" -> a11y.clickNodeByText(command.value)
-                        "TYPE" -> a11y.typeTextIntoFocusedNode(command.value)
-                        "SCROLL" -> if (command.value == "UP") {
-                            a11y.performSwipe(540f, 600f, 540f, 1500f)
+                when (command.actionType) {
+                    "CLICK" -> {
+                        a11y?.clickNodeByText(command.value)
+                    }
+                    "TYPE" -> {
+                        a11y?.typeTextIntoFocusedNode(command.value)
+                    }
+                    "SCROLL" -> {
+                        a11y?.performDirectionalScroll(command.value)
+                    }
+                    "NAVIGATE" -> {
+                        val handled = a11y?.performSystemNavigation(command.value) ?: false
+                        if (!handled && command.value.equals("HOME", ignoreCase = true)) {
+                            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                                addCategory(Intent.CATEGORY_HOME)
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startSafeIntent(homeIntent)
+                        }
+                    }
+                    "RGB_BACKGROUND" -> {
+                        val enable = !command.value.equals("OFF", ignoreCase = true)
+                        if (enable) {
+                            RgbBackgroundOverlayManager.startBackgroundRgbLight(context)
                         } else {
-                            a11y.performSwipe(540f, 1500f, 540f, 600f)
+                            RgbBackgroundOverlayManager.stopBackgroundRgbLight()
                         }
                     }
                 }

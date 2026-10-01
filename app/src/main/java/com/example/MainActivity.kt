@@ -59,6 +59,7 @@ fun JarvisRootApp(
     val overlayNotification by viewModel.overlayNotification.collectAsStateWithLifecycle()
     val isServiceRunning by viewModel.isForegroundServiceRunning.collectAsStateWithLifecycle()
     val isScreenSharingLive by viewModel.screenShareManager.isScreenSharing.collectAsStateWithLifecycle()
+    val isBackgroundRgbActive by viewModel.isBackgroundRgbActive.collectAsStateWithLifecycle()
 
     val isContinuousMicOn by viewModel.speechManager.isContinuousMicOn.collectAsStateWithLifecycle()
     val isListening by viewModel.speechManager.isListening.collectAsStateWithLifecycle()
@@ -87,6 +88,8 @@ fun JarvisRootApp(
                         SettingsScreen(
                             customApiKey = customApiKey,
                             onSaveCustomApiKey = { key -> viewModel.saveCustomApiKey(key) },
+                            isBackgroundRgbActive = isBackgroundRgbActive,
+                            onToggleBackgroundRgb = { viewModel.toggleBackgroundRgbLight() },
                             wakeState = wakeState,
                             isForegroundServiceRunning = isServiceRunning,
                             memories = memories,
@@ -108,6 +111,7 @@ fun JarvisRootApp(
                             isContinuousMicOn = isContinuousMicOn,
                             isSpeaking = isSpeaking,
                             isScreenSharingLive = isScreenSharingLive,
+                            isBackgroundRgbActive = isBackgroundRgbActive,
                             audioAmplitude = audioAmplitude,
                             liveTranscript = liveTranscript,
                             recentMessages = messages,
@@ -121,6 +125,7 @@ fun JarvisRootApp(
                                 viewModel.startLiveScreenShare(resultCode, data)
                             },
                             onStopLiveScreenShare = { viewModel.stopLiveScreenShare() },
+                            onToggleBackgroundRgb = { viewModel.toggleBackgroundRgbLight() },
                             onQuickPrompt = { prompt -> viewModel.handleUserMessage(prompt) },
                             onSpeakText = { cleanText ->
                                 viewModel.speechManager.speak(

@@ -25,6 +25,7 @@ import com.example.data.repository.JarvisRepository
 import com.example.service.JarvisVoiceService
 import com.example.util.JarvisSpeechManager
 import com.example.util.PhoneControlExecutor
+import com.example.util.RgbBackgroundOverlayManager
 import com.example.util.ScreenShareManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,6 +129,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _isForegroundServiceRunning = MutableStateFlow(false)
     val isForegroundServiceRunning: StateFlow<Boolean> = _isForegroundServiceRunning.asStateFlow()
+
+    val isBackgroundRgbActive: StateFlow<Boolean> = RgbBackgroundOverlayManager.isBackgroundRgbActive
 
     init {
         viewModelScope.launch {
@@ -412,54 +415,81 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    fun toggleBackgroundRgbLight() {
+        val app = getApplication<Application>()
+        if (RgbBackgroundOverlayManager.isBackgroundRgbActive.value) {
+            RgbBackgroundOverlayManager.stopBackgroundRgbLight()
+            speechManager.speak(
+                cleanText = "Ji, background RGB light band kar di hai",
+                voiceSettings = voiceSettings.value,
+                mood = selectedMood.value,
+                isChupMode = wakeState.value == WakeState.CHUP_MODE
+            )
+        } else {
+            if (!RgbBackgroundOverlayManager.hasOverlayPermission(app)) {
+                RgbBackgroundOverlayManager.requestOverlayPermission(app)
+                speechManager.speak(
+                    cleanText = "Ji, background RGB light ke liye Display Over Other Apps permission allow kar dijiye",
+                    voiceSettings = voiceSettings.value,
+                    mood = selectedMood.value,
+                    isChupMode = wakeState.value == WakeState.CHUP_MODE
+                )
+            } else {
+                // Ensure foreground service stays alive so background RGB light never stops
+                if (!_isForegroundServiceRunning.value) {
+                    toggleForegroundService()
+                }
+                RgbBackgroundOverlayManager.startBackgroundRgbLight(app)
+                speechManager.speak(
+                    cleanText = "Ji, background RGB light chalu ho gayi hai, ab yeh har app ke upar chalti rahegi jab tak aap off nahi karenge",
+                    voiceSettings = voiceSettings.value,
+                    mood = selectedMood.value,
+                    isChupMode = wakeState.value == WakeState.CHUP_MODE
+                )
+            }
+        }
+    }
+
     fun performScreenShareControl(actionType: String, payload: String = "") {
         when (actionType) {
             "CLICK" -> {
-                val btnName = payload.ifBlank { "Blue Confirm Button ('Track Order')" }
-                _screenMockState.update {
-                    it.copy(
-                        lastClickedButton = btnName,
-                        subText = "✅ Clicked '$btnName' — Ho gaya ji ✅"
-                    )
-                }
-                handleUserMessage("Neeche wale blue button pe click karo")
+                val btnName = payload.ifBlank { "First Item" }
+                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("CLICK", btnName))
+                handleUserMessage("$btnName pe click karo")
             }
-            "SCROLL" -> {
-                val newOffset = (_screenMockState.value.scrollOffset + 240) % 960
-                val nextHeadline = when (newOffset) {
-                    240 -> "WhatsApp • Rahul: 'Bhai kab aa raha hai?'"
-                    480 -> "YouTube Music • Playing: 'Arijit Singh Best Hits' 🎵"
-                    720 -> "System Battery: ${_systemTelemetry.value.batteryPct}% Healthy ⚡"
-                    else -> "Your order #408-9921 has been shipped 📦"
-                }
-                _screenMockState.update {
-                    it.copy(
-                        scrollOffset = newOffset,
-                        headlineText = nextHeadline,
-                        subText = "Scrolled to offset ${newOffset}px • Ho gaya ji ✅"
-                    )
-                }
-                handleUserMessage("Scroll karo")
+            "SCROLL", "SCROLL_DOWN" -> {
+                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("SCROLL", "DOWN"))
+                handleUserMessage("Neeche scroll karo")
+            }
+            "SCROLL_UP" -> {
+                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("SCROLL", "UP"))
+                handleUserMessage("Upar scroll karo")
+            }
+            "SCROLL_LEFT" -> {
+                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("SCROLL", "LEFT"))
+                handleUserMessage("Left scroll karo")
+            }
+            "SCROLL_RIGHT" -> {
+                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("SCROLL", "RIGHT"))
+                handleUserMessage("Right scroll karo")
+            }
+            "NAV_HOME" -> {
+                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("NAVIGATE", "HOME"))
+                handleUserMessage("Home screen")
+            }
+            "NAV_BACK" -> {
+                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("NAVIGATE", "BACK"))
+                handleUserMessage("Back karo")
             }
             "TYPE" -> {
                 val textToType = payload.ifBlank { "Main aa raha hun ji" }
-                _screenMockState.update {
-                    it.copy(
-                        typedFieldValue = textToType,
-                        subText = "Typed '$textToType' into active field • Ho gaya ji ✅"
-                    )
-                }
+                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("TYPE", textToType))
                 handleUserMessage("Type karo '$textToType'")
             }
             "READ_OCR" -> {
                 handleUserMessage("Screen padho")
             }
             "TRANSLATE" -> {
-                _screenMockState.update {
-                    it.copy(
-                        subText = "Hindi Translation: 'Aapka order bhej diya gaya hai aur kal raat 8 baje tak pahunchega 📦'"
-                    )
-                }
                 handleUserMessage("Screen translate karo")
             }
             "STOP_TOGGLE" -> {
@@ -600,6 +630,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                         it.copy(typedFieldValue = cmd.value, subText = "Typed '${cmd.value}' ✅")
                     }
                 }
+                // CRITICAL: Also execute the real Accessibility / Overlay action on the phone!
+                phoneControl.executeCommand(cmd)
             }
             is PhoneActionCommand.MultiCommandChain -> {
                 cmd.commands.forEach { sub ->

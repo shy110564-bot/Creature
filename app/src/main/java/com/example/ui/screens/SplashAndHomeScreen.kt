@@ -126,6 +126,7 @@ fun HomeScreen(
     isContinuousMicOn: Boolean = false,
     isSpeaking: Boolean,
     isScreenSharingLive: Boolean = false,
+    isBackgroundRgbActive: Boolean = false,
     audioAmplitude: Float,
     liveTranscript: String,
     recentMessages: List<ChatMessageEntity>,
@@ -137,6 +138,7 @@ fun HomeScreen(
     onStopVoiceListen: () -> Unit = {},
     onStartLiveScreenShare: (Int, Intent) -> Unit = { _, _ -> },
     onStopLiveScreenShare: () -> Unit = {},
+    onToggleBackgroundRgb: () -> Unit = {},
     onQuickPrompt: (String) -> Unit,
     onSpeakText: (String) -> Unit = {},
     onClearChat: () -> Unit = {},
@@ -295,11 +297,37 @@ fun HomeScreen(
                 }
             }
 
-            // Top-Right Corner: Live Screen Share Button, Clear Chat, and Settings
+            // Top-Right Corner: Background RGB Light, Live Screen Share, Clear Chat, and Settings
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Background RGB Light Pill Toggle
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            if (isBackgroundRgbActive) Brush.linearGradient(listOf(rgbColor1.copy(alpha = 0.32f), rgbColor2.copy(alpha = 0.32f)))
+                            else Brush.linearGradient(listOf(SurfaceAlt, SurfaceAlt))
+                        )
+                        .border(
+                            1.5.dp,
+                            Brush.linearGradient(listOf(rgbColor1, rgbColor2, rgbColor3)),
+                            RoundedCornerShape(999.dp)
+                        )
+                        .clickable { onToggleBackgroundRgb() }
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .testTag("top_rgb_bg_btn"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isBackgroundRgbActive) "🌈 RGB ON" else "🌈 RGB",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isBackgroundRgbActive) NeonGreen else TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
                 // Live Screen Share Pill Button
                 Row(
                     modifier = Modifier
@@ -318,7 +346,7 @@ fun HomeScreen(
                                 requestSystemScreenShare()
                             }
                         }
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
                         .testTag("top_screen_share_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -326,11 +354,11 @@ fun HomeScreen(
                         imageVector = if (isScreenSharingLive) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
                         contentDescription = "Live Screen Share",
                         tint = if (isScreenSharingLive) NeonRed else NeonCyan,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        text = if (isScreenSharingLive) "LIVE 🔴" else "Screen",
+                        text = if (isScreenSharingLive) "LIVE" else "Screen",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isScreenSharingLive) NeonRed else NeonCyan,
                         fontWeight = FontWeight.Bold
@@ -352,7 +380,7 @@ fun HomeScreen(
                         .background(SurfaceAlt)
                         .border(1.5.dp, NeonGreen, RoundedCornerShape(999.dp))
                         .clickable { onOpenSettings() }
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
                         .testTag("top_settings_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -360,9 +388,9 @@ fun HomeScreen(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Settings, Permissions & API Key",
                         tint = NeonGreen,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = "Setting",
                         style = MaterialTheme.typography.labelSmall,
@@ -462,7 +490,7 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     NeonButton(
-                        text = "📖 Screen Padho",
+                        text = "📖 Padho",
                         onClick = { onPerformScreenAction("READ_OCR", "") },
                         accentColor = HotPink,
                         modifier = Modifier.weight(1f),
@@ -470,17 +498,60 @@ fun HomeScreen(
                     )
                     NeonButton(
                         text = "👆 Click",
-                        onClick = { onPerformScreenAction("CLICK", "Button") },
+                        onClick = { onPerformScreenAction("CLICK", "First Item") },
                         accentColor = NeonGreen,
                         modifier = Modifier.weight(1f),
                         testTag = "vision_click_btn"
                     )
                     NeonButton(
-                        text = "↕️ Scroll",
-                        onClick = { onPerformScreenAction("SCROLL", "DOWN") },
+                        text = "🏠 Home",
+                        onClick = { onPerformScreenAction("NAV_HOME", "") },
+                        accentColor = NeonCyan,
+                        modifier = Modifier.weight(1f),
+                        testTag = "vision_home_btn"
+                    )
+                    NeonButton(
+                        text = "🔙 Back",
+                        onClick = { onPerformScreenAction("NAV_BACK", "") },
                         accentColor = NeonPurple,
                         modifier = Modifier.weight(1f),
-                        testTag = "vision_scroll_btn"
+                        testTag = "vision_back_btn"
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    NeonButton(
+                        text = "⬆️ Upar",
+                        onClick = { onPerformScreenAction("SCROLL_UP", "") },
+                        accentColor = NeonCyan,
+                        modifier = Modifier.weight(1f),
+                        testTag = "vision_scroll_up_btn"
+                    )
+                    NeonButton(
+                        text = "⬇️ Neeche",
+                        onClick = { onPerformScreenAction("SCROLL_DOWN", "") },
+                        accentColor = NeonGreen,
+                        modifier = Modifier.weight(1f),
+                        testTag = "vision_scroll_down_btn"
+                    )
+                    NeonButton(
+                        text = "⬅️ Left",
+                        onClick = { onPerformScreenAction("SCROLL_LEFT", "") },
+                        accentColor = HotPink,
+                        modifier = Modifier.weight(1f),
+                        testTag = "vision_scroll_left_btn"
+                    )
+                    NeonButton(
+                        text = "➡️ Right",
+                        onClick = { onPerformScreenAction("SCROLL_RIGHT", "") },
+                        accentColor = NeonPurple,
+                        modifier = Modifier.weight(1f),
+                        testTag = "vision_scroll_right_btn"
                     )
                 }
             }
