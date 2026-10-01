@@ -146,6 +146,7 @@ fun HomeScreen(
     onCancelSensitiveAction: () -> Unit = {},
     onSetCapturedBitmap: (Bitmap?) -> Unit = {},
     onPerformScreenAction: (String, String) -> Unit = { _, _ -> },
+    onOpenCodingStudio: () -> Unit = {},
     onOpenSettings: () -> Unit
 ) {
     val context = LocalContext.current
@@ -297,11 +298,30 @@ fun HomeScreen(
                 }
             }
 
-            // Top-Right Corner: Background RGB Light, Live Screen Share, Clear Chat, and Settings
+            // Top-Right Corner: Side Coding Studio, Background RGB Light, Live Screen Share (ON/OFF), and Settings
             Row(
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Side Coding Studio Pill Button ("ek side coding ka system add kar do")
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(SurfaceAlt)
+                        .border(1.5.dp, NeonPurple, RoundedCornerShape(999.dp))
+                        .clickable { onOpenCodingStudio() }
+                        .padding(horizontal = 7.dp, vertical = 7.dp)
+                        .testTag("top_coding_studio_btn"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "💻 Code",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = NeonCyan,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
                 // Background RGB Light Pill Toggle
                 Row(
                     modifier = Modifier
@@ -316,24 +336,24 @@ fun HomeScreen(
                             RoundedCornerShape(999.dp)
                         )
                         .clickable { onToggleBackgroundRgb() }
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .padding(horizontal = 7.dp, vertical = 7.dp)
                         .testTag("top_rgb_bg_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isBackgroundRgbActive) "🌈 RGB ON" else "🌈 RGB",
+                        text = if (isBackgroundRgbActive) "🌈 ON" else "🌈 RGB",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isBackgroundRgbActive) NeonGreen else TextPrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                // Live Screen Share Pill Button
+                // Live Screen Share ON / OFF Toggle Pill Button
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .background(
-                            if (isScreenSharingLive) NeonRed.copy(alpha = 0.25f) else SurfaceAlt
+                            if (isScreenSharingLive) NeonRed.copy(alpha = 0.28f) else SurfaceAlt
                         )
                         .border(
                             1.5.dp,
@@ -341,37 +361,33 @@ fun HomeScreen(
                             RoundedCornerShape(999.dp)
                         )
                         .clickable {
-                            showScreenPanel = true
-                            if (!isScreenSharingLive) {
+                            if (isScreenSharingLive) {
+                                // 1-Tap to turn OFF Screen Share anytime!
+                                onStopLiveScreenShare()
+                                showScreenPanel = false
+                            } else {
+                                showScreenPanel = true
                                 requestSystemScreenShare()
                             }
                         }
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .padding(horizontal = 7.dp, vertical = 7.dp)
                         .testTag("top_screen_share_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = if (isScreenSharingLive) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
-                        contentDescription = "Live Screen Share",
+                        contentDescription = "Live Screen Share ON/OFF",
                         tint = if (isScreenSharingLive) NeonRed else NeonCyan,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        text = if (isScreenSharingLive) "LIVE" else "Screen",
+                        text = if (isScreenSharingLive) "OFF" else "Screen",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isScreenSharingLive) NeonRed else NeonCyan,
                         fontWeight = FontWeight.Bold
                     )
                 }
-
-                NeonIconButton(
-                    icon = Icons.Default.DeleteSweep,
-                    contentDescription = "Clear Chat",
-                    onClick = onClearChat,
-                    tint = HotPink,
-                    testTag = "clear_chat_btn"
-                )
 
                 // Top-Right Corner Settings Button (Permissions + Gemini API Key)
                 Row(
@@ -380,7 +396,7 @@ fun HomeScreen(
                         .background(SurfaceAlt)
                         .border(1.5.dp, NeonGreen, RoundedCornerShape(999.dp))
                         .clickable { onOpenSettings() }
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .padding(horizontal = 7.dp, vertical = 7.dp)
                         .testTag("top_settings_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -388,14 +404,7 @@ fun HomeScreen(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Settings, Permissions & API Key",
                         tint = NeonGreen,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        text = "Setting",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = NeonGreen,
-                        fontWeight = FontWeight.Bold
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
@@ -423,14 +432,68 @@ fun HomeScreen(
                         else "🖥️ Screen Share (JARVIS Ko Apni Screen Dikhayein)",
                         style = MaterialTheme.typography.labelLarge,
                         color = if (isScreenSharingLive) NeonGreen else NeonCyan,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
                     )
+                    if (isScreenSharingLive) {
+                        Text(
+                            text = "⏹ Share OFF",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeonRed,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(NeonRed.copy(alpha = 0.18f))
+                                .border(1.dp, NeonRed, RoundedCornerShape(999.dp))
+                                .clickable {
+                                    onStopLiveScreenShare()
+                                    showScreenPanel = false
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     Text(
                         text = if (isScreenSharingLive) "Hide ▲" else "Close ✕",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary,
                         modifier = Modifier.clickable { showScreenPanel = false }
                     )
+                }
+
+                if (!com.example.service.JarvisAccessibilityService.isRunning) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(HotPink.copy(alpha = 0.18f))
+                            .border(1.dp, HotPink, RoundedCornerShape(10.dp))
+                            .clickable {
+                                runCatching {
+                                    val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "⚡ Click/Scroll/Back ke liye Accessibility ON karein",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeonGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Enable ➔",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = HotPink,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                 }
 
                 if (capturedBitmap != null) {
@@ -454,11 +517,12 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     NeonButton(
-                        text = if (isScreenSharingLive) "⏹ Stop Share" else "🖥️ Start Screen Share",
+                        text = if (isScreenSharingLive) "⏹ Screen Share OFF" else "🖥️ Start Screen Share",
                         icon = if (isScreenSharingLive) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
                         onClick = {
                             if (isScreenSharingLive) {
                                 onStopLiveScreenShare()
+                                showScreenPanel = false
                             } else {
                                 requestSystemScreenShare()
                             }

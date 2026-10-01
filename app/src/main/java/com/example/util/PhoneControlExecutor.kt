@@ -885,22 +885,38 @@ class PhoneControlExecutor(private val context: Context) {
                 val a11y = JarvisAccessibilityService.instance
                 when (command.actionType) {
                     "CLICK" -> {
-                        a11y?.clickNodeByText(command.value)
+                        if (a11y != null) {
+                            a11y.clickNodeByText(command.value)
+                        } else {
+                            startSafeIntent(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }
                     }
                     "TYPE" -> {
-                        a11y?.typeTextIntoFocusedNode(command.value)
+                        if (a11y != null) {
+                            a11y.typeTextIntoFocusedNode(command.value)
+                        } else {
+                            startSafeIntent(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }
                     }
                     "SCROLL" -> {
-                        a11y?.performDirectionalScroll(command.value)
+                        if (a11y != null) {
+                            a11y.performDirectionalScroll(command.value)
+                        } else {
+                            startSafeIntent(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }
                     }
                     "NAVIGATE" -> {
                         val handled = a11y?.performSystemNavigation(command.value) ?: false
-                        if (!handled && command.value.equals("HOME", ignoreCase = true)) {
-                            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                                addCategory(Intent.CATEGORY_HOME)
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        if (!handled) {
+                            if (command.value.equals("HOME", ignoreCase = true)) {
+                                val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                                    addCategory(Intent.CATEGORY_HOME)
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                startSafeIntent(homeIntent)
+                            } else if (a11y == null) {
+                                startSafeIntent(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                             }
-                            startSafeIntent(homeIntent)
                         }
                     }
                     "RGB_BACKGROUND" -> {

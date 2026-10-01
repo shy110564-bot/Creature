@@ -23,6 +23,7 @@ import com.example.data.remote.JarvisAiEngine
 import com.example.data.remote.PhoneActionCommand
 import com.example.data.repository.JarvisRepository
 import com.example.service.JarvisVoiceService
+import com.example.ui.screens.CodingChatMessage
 import com.example.util.JarvisSpeechManager
 import com.example.util.PhoneControlExecutor
 import com.example.util.RgbBackgroundOverlayManager
@@ -39,6 +40,7 @@ import kotlinx.coroutines.launch
 enum class JarvisScreen(val routeId: String, val label: String) {
     SPLASH("splash", "Splash"),
     HOME("home", "Home"),
+    CODING_STUDIO("coding_studio", "Coding Studio"),
     VOICE_CHAT("voice_chat", "Voice Chat"),
     SCREEN_SHARE("screen_share", "Screen Vision"),
     MOODS_GOD_MODE("moods_god_mode", "Phone Control"),
@@ -405,6 +407,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     fun stopLiveScreenShare() {
         screenShareManager.stopScreenShare()
+        _capturedScreenBitmap.value = null
         _screenMockState.update { it.copy(isSharingLive = false) }
         val msg = "Ji… Live Screen Share band kar diya hai ✅"
         speechManager.speak(
@@ -413,6 +416,52 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             mood = selectedMood.value,
             isChupMode = wakeState.value == WakeState.CHUP_MODE
         )
+    }
+
+    private val _codingMessages = MutableStateFlow<List<CodingChatMessage>>(emptyList())
+    val codingMessages: StateFlow<List<CodingChatMessage>> = _codingMessages.asStateFlow()
+
+    private val _isGeneratingCode = MutableStateFlow(false)
+    val isGeneratingCode: StateFlow<Boolean> = _isGeneratingCode.asStateFlow()
+
+    fun sendCodingPrompt(rawPrompt: String) {
+        val prompt = rawPrompt.trim()
+        if (prompt.isBlank()) return
+        val userMsg = CodingChatMessage(
+            id = System.currentTimeMillis(),
+            isUser = true,
+            promptOrTitle = prompt
+        )
+        _codingMessages.update { it + userMsg }
+        _isGeneratingCode.value = true
+
+        viewModelScope.launch {
+            val (lang, code, explanation) = JarvisAiEngine.generateUltraCode(
+                prompt = prompt,
+                customApiKey = customApiKey.value
+            )
+            val aiMsg = CodingChatMessage(
+                id = System.currentTimeMillis() + 1L,
+                isUser = false,
+                promptOrTitle = prompt,
+                language = lang,
+                codeContent = code,
+                explanation = explanation
+            )
+            _codingMessages.update { it + aiMsg }
+            _isGeneratingCode.value = false
+
+            speechManager.speak(
+                cleanText = JarvisAiEngine.stripVocalCuesForTts(explanation),
+                voiceSettings = voiceSettings.value,
+                mood = selectedMood.value,
+                isChupMode = wakeState.value == WakeState.CHUP_MODE
+            )
+        }
+    }
+
+    fun clearCodingChat() {
+        _codingMessages.value = emptyList()
     }
 
     fun toggleBackgroundRgbLight() {
@@ -619,7 +668,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                             activeViewers = (it.activeViewers + "${cmd.value} (Live Connected)").distinct()
                         )
                     }
-                    "STOP_SHARE" -> _screenMockState.update { it.copy(isSharingLive = false) }
+                    "STOP_SHARE" -> {
+                        screenShareManager.stopScreenShare()
+                        _capturedScreenBitmap.value = null
+                        _screenMockState.update { it.copy(isSharingLive = false) }
+                    }
                     "CLICK" -> _screenMockState.update {
                         it.copy(lastClickedButton = cmd.value, subText = "✅ Clicked '${cmd.value}'")
                     }

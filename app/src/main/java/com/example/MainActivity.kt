@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.components.NotificationOverlayBanner
 import com.example.ui.components.RgbEdgeAndBackgroundContainer
+import com.example.ui.screens.CodingStudioScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -60,6 +61,8 @@ fun JarvisRootApp(
     val isServiceRunning by viewModel.isForegroundServiceRunning.collectAsStateWithLifecycle()
     val isScreenSharingLive by viewModel.screenShareManager.isScreenSharing.collectAsStateWithLifecycle()
     val isBackgroundRgbActive by viewModel.isBackgroundRgbActive.collectAsStateWithLifecycle()
+    val codingMessages by viewModel.codingMessages.collectAsStateWithLifecycle()
+    val isGeneratingCode by viewModel.isGeneratingCode.collectAsStateWithLifecycle()
 
     val isContinuousMicOn by viewModel.speechManager.isContinuousMicOn.collectAsStateWithLifecycle()
     val isListening by viewModel.speechManager.isListening.collectAsStateWithLifecycle()
@@ -84,6 +87,16 @@ fun JarvisRootApp(
                 label = "jarvis_simple_transition"
             ) { screen ->
                 when (screen) {
+                    JarvisScreen.CODING_STUDIO -> {
+                        CodingStudioScreen(
+                            codingMessages = codingMessages,
+                            isGeneratingCode = isGeneratingCode,
+                            onSendCodingPrompt = { prompt -> viewModel.sendCodingPrompt(prompt) },
+                            onClearCodingChat = { viewModel.clearCodingChat() },
+                            onBack = { viewModel.navigateTo(JarvisScreen.HOME) }
+                        )
+                    }
+
                     JarvisScreen.SETTINGS -> {
                         SettingsScreen(
                             customApiKey = customApiKey,
@@ -142,6 +155,7 @@ fun JarvisRootApp(
                             onPerformScreenAction = { action, payload ->
                                 viewModel.performScreenShareControl(action, payload)
                             },
+                            onOpenCodingStudio = { viewModel.navigateTo(JarvisScreen.CODING_STUDIO) },
                             onOpenSettings = { viewModel.navigateTo(JarvisScreen.SETTINGS) }
                         )
                     }

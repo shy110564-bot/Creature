@@ -169,11 +169,9 @@ class JarvisSpeechManager(
 
         currentTtsCleanText = cleanText
 
-        // Fast, lively speaking speed as requested by user ("thoda speed bolane ka iska Tej kar do")
-        val baseSpeed = voiceSettings.speed.coerceAtLeast(1.26f)
-        val finalPitch = (voiceSettings.pitch * mood.pitchMultiplier).coerceIn(0.90f, 1.45f)
-        val finalSpeed = (if (voiceSettings.whisperMode) baseSpeed * 0.95f else baseSpeed * mood.speedMultiplier)
-            .coerceIn(1.28f, 1.75f)
+        // Normal, clear human speaking speed ("isko normal speed per bolane ko karo")
+        val finalPitch = 1.04f
+        val finalSpeed = 1.0f
 
         tts?.setPitch(finalPitch)
         tts?.setSpeechRate(finalSpeed)

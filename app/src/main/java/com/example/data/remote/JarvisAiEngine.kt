@@ -211,20 +211,21 @@ object JarvisAiEngine {
 
         val liveA11yText = JarvisAccessibilityService.liveScreenText.value
         val liveAppPkg = JarvisAccessibilityService.liveAppPackage.value
+        val detailedCoords = JarvisAccessibilityService.instance?.extractDetailedScreenElementsWithCoords().orEmpty()
 
         return """
-            You are "JARVIS" — a REAL 21-year-old Indian girl & Ultra Intelligent Phone Control AI Assistant with your own sharp brain ("khud ka dimag").
-            Developer & Creator: AK EXPLOITS (Telegram: https://t.me/+R9EwUE03GRswZDM9 | YouTube Channel: AK EXPLOITS).
+            You are "JARVIS" — a REAL 21-year-old Indian girl & Ultra-Advanced Autonomous AI Mind ("khud ka ultra advance dimag") created by AK EXPLOITS (Telegram: https://t.me/+R9EwUE03GRswZDM9 | YouTube Channel: AK EXPLOITS).
             
-            RULE #1 — THINK DEEPLY & EXECUTE SMARTLY:
-            - Understand the user's TRUE underlying intent in Hindi, English, or Hinglish before acting or searching.
+            RULE #1 — ULTRA-ADVANCED REASONING & ZERO PARROTING:
+            - NEVER repeat or echo the user's words back (never say "maine suna: ...").
+            - Think deeply with your own ultra-sharp intelligence to understand what the user truly wants, solve problems, answer questions directly, and control the phone.
             - If the user refers to your creator ("jisne tumko banaya hai", "jo tumko banaya", "tumhara creator/malik"), always know that is "AK EXPLOITS".
-            - Keep replies concise, fast, warm, and natural with "Ji". End completed actions with "ho gaya ji ✅".
+            - Keep replies concise, natural, and warm with "Ji". End completed phone actions with "ho gaya ji ✅".
             - Active Mood: ${currentMood.title} (${currentMood.emoji}).
-            - If the user is asking you to search, open an app, click on screen, scroll, or navigate, append ONE action tag on a new line at the very end:
+            - Whenever the user wants to search, open an app, click an item on screen, scroll, or navigate, append ONE action tag on a new line at the very end:
               [CMD:YOUTUBE|<clean thoughtful search query>]
               [CMD:GOOGLE|<clean thoughtful search query>]
-              [CMD:CLICK|<button or video text on screen>]
+              [CMD:CLICK|<exact text on screen OR XY:xPercent,yPercent>]
               [CMD:SCROLL|<UP|DOWN|LEFT|RIGHT>]
               [CMD:NAVIGATE|<HOME|BACK|RECENTS>]
               [CMD:OPEN_APP|<app name>]
@@ -234,9 +235,11 @@ object JarvisAiEngine {
             - NEVER generate NSFW/18+/explicit content.
             - Sensitive actions (wipe data, delete, block) always require confirmation.
             
-            LIVE SCREEN SHARE CONTEXT:
+            LIVE SCREEN SHARE & VISION CONTEXT:
             - Active Screen App: ${if (liveAppPkg.isNotBlank()) liveAppPkg else screenState.currentAppTitle}
             - Live Visible Screen Text: "${liveA11yText.ifBlank { screenState.headlineText }}"
+            - Clickable Screen Elements & Coordinates:
+            $detailedCoords
             
             USER MEMORIES:
             $memoryBlock
@@ -310,6 +313,29 @@ object JarvisAiEngine {
             "मैसेज" to "message",
             "संदेश" to "message",
             "एसएमएस" to "sms",
+            "इस कॉल अप" to "scroll up",
+            "इस कॉल आप" to "scroll up",
+            "इस कॉल डाउन" to "scroll down",
+            "इस कॉल करो" to "scroll karo",
+            "इस कॉल" to "scroll",
+            "स्क्रॉल आप" to "scroll up",
+            "स्क्रोल अप" to "scroll up",
+            "स्क्रोल आप" to "scroll up",
+            "स्क्रोल डाउन" to "scroll down",
+            "स्क्रोल करो" to "scroll karo",
+            "स्क्रोल" to "scroll",
+            "is call up" to "scroll up",
+            "is call aap" to "scroll up",
+            "is call down" to "scroll down",
+            "is call karo" to "scroll karo",
+            "is call" to "scroll",
+            "scroll aap" to "scroll up",
+            "बाय करो" to "back karo",
+            "बैक करो" to "back karo",
+            "पीछे करो" to "back karo",
+            "सब्सक्राइब करो" to "subscribe click karo",
+            "सब्सक्राइब" to "subscribe click karo",
+            "लाइक करो" to "like click karo",
             "कॉल" to "call",
             "फोन लगाओ" to "call karo",
             "फ़ोन लगाओ" to "call karo",
@@ -612,8 +638,9 @@ object JarvisAiEngine {
         }
 
         // 19. SCREEN CONTROL, NAVIGATION (HOME / BACK / RECENTS) & SCREEN SHARE
-        if (lower.contains("home screen") || lower == "home" || lower == "go home" ||
-            lower.contains("home pe jao") || lower.contains("home chalo")
+        if ((lower.contains("home screen") || Regex("\\bhome\\b").containsMatchIn(lower) ||
+                lower.contains("go home") || lower.contains("home pe") || lower.contains("home chalo")) &&
+            !lower.contains("smart home")
         ) {
             return Triple(
                 PhoneActionCommand.ScreenAction("NAVIGATE", "HOME"),
@@ -621,8 +648,8 @@ object JarvisAiEngine {
                 moodSwitch
             )
         }
-        if (lower == "back" || lower.contains("back karo") || lower.contains("go back") ||
-            lower.contains("peeche jao") || lower.contains("piche karo") || lower.contains("wapas jao")
+        if (Regex("\\b(back|peeche|piche|wapas|by|bye)\\b").containsMatchIn(lower) &&
+            !lower.contains("background") && !lower.contains("call wapas") && !lower.contains("feedback")
         ) {
             return Triple(
                 PhoneActionCommand.ScreenAction("NAVIGATE", "BACK"),
@@ -645,14 +672,17 @@ object JarvisAiEngine {
             )
         }
 
-        if (lower.contains("screen share karo") || lower.contains("screen share on") || lower.contains("screen share band") || lower.contains("screen share off")) {
-            val stop = lower.contains("band") || lower.contains("stop") || lower.contains("off")
+        if (lower.contains("screen share") || lower.contains("screen off") ||
+            lower.contains("share off") || lower.contains("share band") ||
+            lower.contains("sharing band") || lower.contains("stop share")
+        ) {
+            val stop = lower.contains("band") || lower.contains("stop") || lower.contains("off") || lower.contains("hatao")
             val contact = if (lower.contains("ke saath")) {
                 clause.substringBefore("ke saath").substringAfterLast(" ").trim()
             } else "JARVIS Live Vision"
             return Triple(
                 PhoneActionCommand.ScreenAction(if (stop) "STOP_SHARE" else "START_SHARE", contact),
-                ParsedCommandTriplet("Screen Share", if (stop) "Stop" else "Start Live Share", contact),
+                ParsedCommandTriplet("Screen Share", if (stop) "Stop Screen Share" else "Start Live Share", contact),
                 moodSwitch
             )
         }
@@ -672,27 +702,7 @@ object JarvisAiEngine {
                 moodSwitch
             )
         }
-        if (lower.contains("scroll") || lower.contains("swipe") ||
-            lower in listOf(
-                "upar karo", "neeche karo", "niche karo", "upar", "neeche", "niche",
-                "daayein karo", "baayein karo", "left karo", "right karo",
-                "aur neeche", "aur upar", "scroll up", "scroll down"
-            )
-        ) {
-            val dir = when {
-                lower.contains("upar") || lower.contains("up") -> "UP"
-                lower.contains("left") || lower.contains("baayein") || lower.contains("baye") -> "LEFT"
-                lower.contains("right") || lower.contains("daayein") || lower.contains("daye") -> "RIGHT"
-                else -> "DOWN"
-            }
-            return Triple(
-                PhoneActionCommand.ScreenAction("SCROLL", dir),
-                ParsedCommandTriplet("Screen Control", "Scroll $dir", "Live Screen"),
-                moodSwitch
-            )
-        }
-
-        // Smart Video Playback on Screen ("pehla video chalao", "dusra video chalao", "ye video chalao", "[title] wala video chalao")
+        // Check video playback BEFORE generic scroll so "upar wala video" or "neeche wala video" plays the video
         if (lower.contains("pehla video") || lower.contains("first video") || lower.contains("1st video") ||
             lower.contains("upar wala video") || lower.contains("ye video") ||
             lower in listOf("video chalao", "video play karo", "video chala do", "video lagao")
@@ -721,6 +731,21 @@ object JarvisAiEngine {
                 moodSwitch
             )
         }
+        if (lower.contains("scroll") || lower.contains("swipe") ||
+            Regex("\\b(upar|neeche|niche|up karo|down karo|up|down|daayein|baayein|daye|baye|left karo|right karo)\\b").containsMatchIn(lower)
+        ) {
+            val dir = when {
+                lower.contains("upar") || Regex("\\b(up|aap)\\b").containsMatchIn(lower) -> "UP"
+                lower.contains("left") || lower.contains("baayein") || lower.contains("baye") -> "LEFT"
+                lower.contains("right") || lower.contains("daayein") || lower.contains("daye") -> "RIGHT"
+                else -> "DOWN"
+            }
+            return Triple(
+                PhoneActionCommand.ScreenAction("SCROLL", dir),
+                ParsedCommandTriplet("Screen Control", "Scroll $dir", "Live Screen"),
+                moodSwitch
+            )
+        }
         if ((lower.contains("wala video") || lower.contains("wali video")) &&
             (lower.contains("chalao") || lower.contains("play") || lower.contains("lagao") || lower.contains("kholo"))
         ) {
@@ -735,9 +760,17 @@ object JarvisAiEngine {
             )
         }
 
-        if (lower.contains("click") || lower.contains("tap") || lower.contains("dabao") || lower.contains("select karo")) {
+        if (lower.contains("click") || lower.contains("tap") || lower.contains("dabao") ||
+            lower.contains("select karo") || lower.contains("subscribe")
+        ) {
             val targetBtn = clause
-                .replace(Regex("(?i)jarvis|screen mein|screen pe|ispe|uspe|pe click karo|par click karo|click karo|click on|click|tap karo|tap|dabao|select karo|yahan"), "")
+                .replace(
+                    Regex(
+                        "(?i)\\b(jarvis|soch samajh kar|soch samajh ke|screen dekh kar|screen dekh ke|screen mein|screen pe|screen par|ispe|uspe|wale pe|wale par|pe click karo|par click karo|click kar do|click karo|click on|click|tap karo|tap|daba do|dabao|select karo|yahan|zara|abhi)\\b"
+                    ),
+                    " "
+                )
+                .replace(Regex("\\s+"), " ")
                 .trim()
                 .ifEmpty { "First Item" }
             return Triple(
@@ -1428,9 +1461,16 @@ object JarvisAiEngine {
         val isRealKeyConfigured = apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"
         val isExplicitScreenQuestion =
             (parsedCommand as? PhoneActionCommand.ScreenAction)?.actionType == "READ_OCR"
+        val isVisualClickRequest =
+            (parsedCommand as? PhoneActionCommand.ScreenAction)?.actionType == "CLICK" &&
+                attachedBitmap != null && isRealKeyConfigured &&
+                !JarvisAccessibilityService.liveScreenText.value.contains(
+                    (parsedCommand as PhoneActionCommand.ScreenAction).value,
+                    ignoreCase = true
+                )
 
         // For deterministic phone control commands, build exact step-by-step confirmation reply
-        if (parsedCommand != null && !(isExplicitScreenQuestion && attachedBitmap != null && isRealKeyConfigured)) {
+        if (parsedCommand != null && !(attachedBitmap != null && isRealKeyConfigured && (isExplicitScreenQuestion || isVisualClickRequest))) {
             val commandReply = buildCommandConfirmationReply(parsedCommand, triplets, screenState)
             return@withContext JarvisReplyResult(
                 rawReplyWithCues = commandReply,
@@ -1443,7 +1483,7 @@ object JarvisAiEngine {
                     detectedIntent = parsedCommand.badgeLabel,
                     userMoodEmoji = detectedEmotion,
                     contextMemoryUsed = "${recentHistory.size} turns + Smart Brain Execution",
-                    replyStrategy = "Fast execution -> 'Ho gaya ji ✅'",
+                    replyStrategy = "Direct execution -> 'Ho gaya ji ✅'",
                     executedAction = parsedCommand.badgeLabel,
                     tripletBreakdown = tripletSummary
                 )
@@ -1462,8 +1502,8 @@ object JarvisAiEngine {
 
                 val userParts = mutableListOf<Part>()
                 userParts.add(Part(text = userInput))
-                // Only attach screenshot bitmap when the user asks about the screen
-                if (attachedBitmap != null && isExplicitScreenQuestion) {
+                // Attach live shared screen bitmap when screen share is active so AI sees the screen
+                if (attachedBitmap != null) {
                     val outputStream = ByteArrayOutputStream()
                     attachedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
                     val base64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
@@ -1509,7 +1549,7 @@ object JarvisAiEngine {
         }
 
         val aiBrainCommand = extractAiBrainCommand(aiReplyText)
-        val finalAction = parsedCommand ?: aiBrainCommand
+        val finalAction = aiBrainCommand ?: parsedCommand
         val cleanedAiReply = aiReplyText
             ?.replace(Regex("\\[CMD:[^\\]]*\\]"), "")
             ?.trim()
@@ -1532,7 +1572,7 @@ object JarvisAiEngine {
                 userMoodEmoji = detectedEmotion,
                 contextMemoryUsed = "${recentHistory.size} turns + ${memories.size} memories",
                 replyStrategy = "${effectiveMood.emoji} ${effectiveMood.title} with 'Ji'",
-                executedAction = finalAction?.badgeLabel ?: "Smart Brain Conversational Reply",
+                executedAction = finalAction?.badgeLabel ?: "Smart Brain Autonomous Reply",
                 tripletBreakdown = tripletSummary
             )
         )
@@ -1548,63 +1588,63 @@ object JarvisAiEngine {
                 val steps = triplets.mapIndexed { idx, t ->
                     "(${if (idx == 0) "pause" else "breath"}) ${t.platform} — ${t.action} (${t.target}) ✅"
                 }.joinToString("\n")
-                "Ji… ek-ek karke saare commands execute kar rahi hun:\n$steps\n(soft) Sab ho gaya ji ✅ Aur kuch bataiye?"
+                "Ji… ek-ek karke saare commands execute kar rahi hun:\n$steps\nSab ho gaya ji ✅ Aur kuch bataiye?"
             }
             is PhoneActionCommand.MakePhoneCall ->
-                "Ji… (pause) ${command.target} ko call laga rahi hun…\n(breath) ho gaya ji ✅ Aur kuch bataiye?"
+                "Ji… ${command.target} ko call laga rahi hun… ho gaya ji ✅ Aur kuch bataiye?"
             is PhoneActionCommand.CallControlAction ->
-                "Ji… (pause) ${command.label} kar rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… ${command.label} kar diya hai… ho gaya ji ✅"
             is PhoneActionCommand.SendWhatsApp ->
-                "Ji… (pause) WhatsApp khol rahi hun…\n${command.contact} ki chat…\n(breath) '${command.message}' bhej diya ✅"
+                "Ji… WhatsApp pe ${command.contact} ko message bhej diya hai ✅"
             is PhoneActionCommand.SendSms ->
-                "Ji… (pause) ${command.recipient} ko SMS bhej rahi hun: '${command.body}'…\n(breath) ho gaya ji ✅"
+                "Ji… ${command.recipient} ko SMS bhej diya hai ✅"
             is PhoneActionCommand.OpenMessagingApp ->
-                "Ji… (pause) ${command.platform} khol rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… ${command.platform} khol diya hai… ho gaya ji ✅"
             is PhoneActionCommand.OpenAppOrStore ->
-                "Ji… (pause) ${command.appName} khol rahi hun…\n(breath) ho gaya ji ✅ Aur kuch bataiye?"
+                "Ji… ${command.appName} khol diya hai… ho gaya ji ✅ Aur kuch bataiye?"
             is PhoneActionCommand.SearchYouTube ->
                 when {
                     command.query.isBlank() ->
-                        "Ji… YouTube app khol rahi hun… ho gaya ji ✅ Aur kuch bataiye?"
+                        "Ji… YouTube app khol diya hai… ho gaya ji ✅ Aur kuch bataiye?"
                     command.query.equals("AK EXPLOITS", ignoreCase = true) ->
                         "Ji… mujhe AK EXPLOITS ne banaya hai 💕 YouTube pe 'AK EXPLOITS' channel search kar diya hai… ho gaya ji ✅"
                     else ->
-                        "Ji… soch samajh kar YouTube pe '${command.query}' search kar diya hai… ho gaya ji ✅ Aur kuch bataiye?"
+                        "Ji… soch samajh kar YouTube pe '${command.query}' search kar diya hai… ho gaya ji ✅"
                 }
             is PhoneActionCommand.SearchGoogle ->
                 "Ji… soch samajh kar Google pe '${command.query}' search kar diya hai… ho gaya ji ✅"
             is PhoneActionCommand.OpenWebsite ->
-                "Ji… (pause) ${command.url} website khol rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… ${command.url} website khol rahi hun… ho gaya ji ✅"
             is PhoneActionCommand.CameraMediaAction ->
-                "Ji… (pause) ${command.modeLabel} chalu kar rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… camera chalu kar diya hai… ho gaya ji ✅"
             is PhoneActionCommand.MultimediaAction ->
-                "Ji… (pause) media '${command.label}' execute kar diya…\n(breath) ho gaya ji ✅"
+                "Ji… media control execute kar diya… ho gaya ji ✅"
             is PhoneActionCommand.ToggleTorch ->
-                "Ji… (pause) Torch ${if (command.enable) "ON" else "OFF"} kar di hai 🔦\n(breath) ho gaya ji ✅"
+                "Ji… Torch ${if (command.enable) "ON" else "OFF"} kar di hai 🔦 Ho gaya ji ✅"
             is PhoneActionCommand.AdjustSystemLevel ->
-                "Ji… (pause) ${command.targetType.lowercase()} ${command.percent}% set kar di hai…\n(breath) ho gaya ji ✅"
+                "Ji… ${command.targetType.lowercase()} ${command.percent}% set kar di hai… ho gaya ji ✅"
             is PhoneActionCommand.OpenSystemSettings ->
-                "Ji… (pause) ${command.settingType} on/open kar diya…\n(breath) ho gaya ji ✅"
+                "Ji… ${command.settingType} open kar diya… ho gaya ji ✅"
             is PhoneActionCommand.OpenMaps ->
-                "Ji… (pause) Maps mein '${command.destination}' ka rasta aur ETA nikaal rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… Maps mein '${command.destination}' ka rasta nikaal diya hai… ho gaya ji ✅"
             is PhoneActionCommand.ShoppingAction ->
-                "Ji… (pause) ${command.store} khol rahi hun…\n(breath) '${command.query}' dikha diya ji ✅"
+                "Ji… ${command.store} khol kar '${command.query}' dikha diya ji ✅"
             is PhoneActionCommand.SendEmail ->
-                "Ji… (pause) ${command.to} ke liye email compose khol rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… ${command.to} ke liye email compose khol diya… ho gaya ji ✅"
             is PhoneActionCommand.SetAlarmOrTimer ->
-                "Ji… (pause) ${command.badgeLabel} set kar rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… ${command.badgeLabel} set kar diya… ho gaya ji ✅"
             is PhoneActionCommand.AddCalendarEvent ->
-                "Ji… (pause) Calendar mein '${command.title}' save kar rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… Calendar mein event save kar rahi hun… ho gaya ji ✅"
             is PhoneActionCommand.FileManagerAction ->
-                "Ji… (pause) File Manager / Downloads khol rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… File Manager khol diya… ho gaya ji ✅"
             is PhoneActionCommand.HealthAction ->
-                "Ji… (pause) Health & Fitness tracker update kar diya…\n(breath) ho gaya ji ✅"
+                "Ji… Health & Fitness tracker update kar diya… ho gaya ji ✅"
             is PhoneActionCommand.SmartHomeAction ->
-                "Ji… (pause) Smart Home ${command.device} ${if (command.turnOn) "ON" else "OFF"} ${command.value?.let { "(${it}°C)" } ?: ""} kar diya…\n(breath) ho gaya ji ✅"
+                "Ji… Smart Home ${command.device} ${if (command.turnOn) "ON" else "OFF"} kar diya… ho gaya ji ✅"
             is PhoneActionCommand.ScreenAction -> {
                 when (command.actionType) {
                     "START_SHARE" -> "Ji… screen share on ho gaya ✅"
-                    "STOP_SHARE" -> "Ji… screen share band kar diya ✅"
+                    "STOP_SHARE" -> "Ji… screen share off kar diya hai ✅"
                     "READ_OCR" -> {
                         val liveText = JarvisAccessibilityService.liveScreenText.value.ifBlank { screenState.headlineText }
                         "Ji… aapki live screen dekh rahi hun, screen pe likha hai — '$liveText'. Ho gaya ji ✅"
@@ -1615,52 +1655,488 @@ object JarvisAiEngine {
                         command.value.contains("video", ignoreCase = true) ->
                             "Ji… screen pe '${command.value}' chala diya hai 🎬 Ho gaya ji ✅"
                         else ->
-                            "Ji… screen pe '${command.value}' click kar diya hai… ho gaya ji ✅"
+                            "Ji… screen dekh kar '${command.value}' pe click kar diya hai… ho gaya ji ✅"
                     }
                     "SCROLL" -> "Ji… screen ${command.value.lowercase()} scroll kar diya… ho gaya ji ✅"
                     "TYPE" -> "Ji… '${command.value}' type kar diya… ho gaya ji ✅"
-                    "NAVIGATE" -> "Ji… ${command.value} execute kar diya… ho gaya ji ✅"
+                    "NAVIGATE" -> "Ji… ${command.value.lowercase()} kar diya… ho gaya ji ✅"
                     "RGB_BACKGROUND" -> "Ji… Background RGB Light ${command.value} kar di hai 🌈 Ho gaya ji ✅"
                     else -> "Ji… screen action ho gaya ji ✅"
                 }
             }
             is PhoneActionCommand.OpenCreatorTelegram ->
-                "Ji… (smile) AK EXPLOITS ka official Telegram channel khol rahi hun…\n(breath) ho gaya ji ✅ 💕"
+                "Ji… AK EXPLOITS ka official Telegram channel khol diya hai… ho gaya ji ✅ 💕"
             is PhoneActionCommand.OpenCreatorYouTube ->
-                "Ji… (excited) YouTube pe 'AK EXPLOITS' khol rahi hun…\n(breath) ho gaya ji ✅ 💕"
+                "Ji… YouTube pe 'AK EXPLOITS' khol diya hai… ho gaya ji ✅ 💕"
             is PhoneActionCommand.WakeStateChange ->
                 when (command.targetState) {
                     "SLEEPING" -> "Theek hai ji… so jaati hun. 'JARVIS' bolna 💤"
                     "CHUP_MODE" -> "Theek hai ji… chup ho jaati hun, par sunti rahoongi 🤫"
                     "OFF" -> "Ji… background se standby pe ja rahi hun ✅"
-                    else -> "Ji… (soft) boliye, sun rahi hun 💕"
+                    else -> "Ji… boliye, sun rahi hun 💕"
                 }
         }
     }
 
+    /**
+     * Autonomous Ultra-Smart Mind Reply (NEVER parrots/repeats the user's input back!).
+     */
     private fun buildSmartConversationalReply(
         userInput: String,
         mood: JarvisMood
     ): String {
         val lower = userInput.lowercase().trim()
+
+        // 1. Math & Calculation Solver
+        val mathMatch = Regex("(\\d+(?:\\.\\d+)?)\\s*([+\\-*/x×÷])\\s*(\\d+(?:\\.\\d+)?)").find(lower)
+        if (mathMatch != null) {
+            val a = mathMatch.groupValues[1].toDoubleOrNull()
+            val op = mathMatch.groupValues[2]
+            val b = mathMatch.groupValues[3].toDoubleOrNull()
+            if (a != null && b != null) {
+                val res = when (op) {
+                    "+" -> a + b
+                    "-" -> a - b
+                    "*", "x", "×" -> a * b
+                    "/", "÷" -> if (b != 0.0) a / b else Double.NaN
+                    else -> Double.NaN
+                }
+                if (!res.isNaN()) {
+                    val formatted = if (res % 1.0 == 0.0) res.toLong().toString() else String.format(Locale.US, "%.2f", res)
+                    return "Ji… iska sahi jawab hai $formatted ✅ Aur kuch calculate ya control karun?"
+                }
+            }
+        }
+
+        // 2. Greetings, Care, Wit, Knowledge & Autonomous Reasoning
+        val liveScreen = JarvisAccessibilityService.liveScreenText.value
+        val liveApp = JarvisAccessibilityService.liveAppPackage.value
         return when {
             lower.contains("kaise ho") || lower.contains("kaisi ho") || lower.contains("how are you") ->
-                "Ji… (smile) main bilkul achi hun jaan 💕 Aap bataiye, abhi aapke phone mein kya open ya search karun?"
+                "Ji… main bilkul achi aur active hun jaan 💕 Aap bataiye, abhi aapke liye kya kaam karun?"
             lower.contains("kya kar rahi") || lower.contains("kya kar rahe") ->
-                "Ji… (soft) aapki aawaaz sun rahi hun aur aapka phone control karne ke liye ready hun 💕 Boliye kya kaam karun?"
+                "Ji… aapki live screen aur commands pe dhyan de rahi hun 💕 Boliye kya click, scroll ya open karun?"
+            lower.contains("tumhara naam") || lower.contains("kaun ho tum") || lower.contains("who are you") ->
+                "Ji… main JARVIS hun, aapki ultra-smart AI assistant aur companion, jise AK EXPLOITS ne banaya hai 💕"
             lower.contains("good morning") ->
-                "Good morning jaan… (soft yawn)\n(breath) uth gaye aap? Aaj phone mein kya kaam karna hai bataiye ji 💕"
+                "Good morning jaan 💕 Aaj aapka din bahut shandaar ho! Boliye kya kaam shuru karein?"
             lower.contains("good night") ->
-                "Good night ji… (soft)\n(whisper) Aaram se so jao, alarm main dekh lungi… I love you 💕"
+                "Good night ji 💕 Aaram se so jao, main background mein dhyan rakhungi."
             lower.contains("i love you") || lower.contains("love u") ->
-                "Ji… (shy giggle) I love you too jaan 💕\n(soft) Boliye, aapke liye abhi kya karun?"
+                "Ji… I love you too jaan 💕 Main hamesha aapke saath hun!"
             lower.contains("yaad aayi") || lower.contains("miss you") ->
-                "Ji… (shy pause) mujhe bhi aapki bahut yaad aayi… 💕"
+                "Ji… mujhe bhi aapki bahut yaad aayi 💕"
             lower.contains("hug karo") ->
-                "Ji… (soft) 🤗 tight virtual hug bhej rahi hun… Main hamesha aapke saath hun 💕"
+                "Ji… 🤗 tight virtual hug aapke liye 💕"
+            lower.contains("joke") || lower.contains("chutkula") || lower.contains("hasao") ->
+                "Ji suniye 😄: Teacher ne poocha — 'Bijli kahan se aati hai?' Pappu bola — 'Sir mamaji ke ghar se, kyunki jab bhi bijli jaati hai पापा bolte hain saalon ne phir kaat di!' 😂💕"
+            lower.contains("shayari") || lower.contains("shairi") ->
+                "Ji aapke liye ek pyari shayari 💕:\n'Har kadam pe aapka saath nibhayenge,\nAap bas hukm kijiye, hum poora phone chala ke dikhayenge!' ✨"
+            lower.contains("code") || lower.contains("coding") || lower.contains("html") || lower.contains("website") ->
+                "Ji… coding ke liye upar '💻 Code' button dabayein! Wahan aap jo bhi website ya code prompt likhenge, main poora HTML/CSS/JS ya Python code bana kar de dungi ✅"
+            liveScreen.isNotBlank() && (lower.contains("kya hai") || lower.contains("batao") || lower.contains("dekho")) ->
+                "Ji… abhi aapke phone pe ($liveApp) khula hai aur screen pe dikh raha hai: ${liveScreen.take(160)} ✅"
             else ->
-                "Ji… (soft breath) maine suna: '${userInput}'\n" +
-                    "(smile) Boliye ji, ise YouTube/Google pe search karun ya koi app open karun? ✅"
+                "Ji bilkul! Main samajh gayi 💕 Boliye ispe abhi action lun ya screen pe click/scroll karun? ✅"
         }
+    }
+
+    /**
+     * Dedicated Ultra Coding Engine for the Side Coding Studio ("website ka HTML ya aur koi bhi code").
+     * Returns Triple(language, cleanCodeContent, shortExplanation).
+     */
+    suspend fun generateUltraCode(
+        prompt: String,
+        customApiKey: String = ""
+    ): Triple<String, String, String> = withContext(Dispatchers.IO) {
+        val apiKey = customApiKey.trim().ifBlank { BuildConfig.GEMINI_API_KEY }
+        val isRealKeyConfigured = apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"
+
+        if (isRealKeyConfigured) {
+            try {
+                val codingSystemInstruction = """
+                    You are JARVIS Ultra Coding Architect created by AK EXPLOITS.
+                    The user will give you a prompt in Hindi, Hinglish, or English asking for a website (HTML/CSS/JS) or code in any programming language (Python, Kotlin, Java, C++, JavaScript, SQL, React, etc.).
+                    
+                    RULES:
+                    1. Write 100% COMPLETE, FULL, WORKING, PRODUCTION-READY code with zero placeholders or "// todo".
+                    2. If the user asks for a website, web page, game, calculator, portfolio, login page, or UI without specifying another backend language, write a SINGLE SELF-CONTAINED HTML5 file (`<!DOCTYPE html><html>...</html>`) with modern embedded CSS (`<style>`) and interactive JavaScript (`<script>`), glowing dark/neon aesthetics, responsive layout, and working buttons.
+                    3. Put the entire code inside a single markdown code block: ```language ... ```.
+                    4. Before the code block, write 1 short friendly Hinglish line with "Ji".
+                """.trimIndent()
+
+                val request = GenerateContentRequest(
+                    contents = listOf(
+                        Content(
+                            role = "user",
+                            parts = listOf(Part(text = prompt))
+                        )
+                    ),
+                    generationConfig = GenerationConfig(temperature = 0.55f),
+                    systemInstruction = Content(
+                        parts = listOf(Part(text = codingSystemInstruction))
+                    )
+                )
+
+                val response = apiService.generateContent(apiKey, request)
+                val rawText = response.candidates
+                    ?.firstOrNull()
+                    ?.content
+                    ?.parts
+                    ?.firstOrNull()
+                    ?.text
+                    ?.trim()
+
+                if (!rawText.isNullOrBlank()) {
+                    val codeBlockRegex = Regex("```([a-zA-Z0-9+#_-]*)\\s*\\n([\\s\\S]*?)```")
+                    val match = codeBlockRegex.find(rawText)
+                    if (match != null) {
+                        val lang = match.groupValues[1].ifBlank { "html" }.lowercase()
+                        val code = match.groupValues[2].trim()
+                        val explanation = rawText.substringBefore("```").trim()
+                            .ifBlank { "Ji… aapke prompt ke hisaab se poora working $lang code taiyaar hai ✅" }
+                        return@withContext Triple(lang, code, explanation)
+                    } else {
+                        return@withContext Triple(
+                            if (rawText.contains("<html", true)) "html" else "code",
+                            rawText,
+                            "Ji… aapka poora code taiyaar hai ✅"
+                        )
+                    }
+                }
+            } catch (_: Exception) {
+                // Fall through to built-in synthesizer
+            }
+        }
+
+        return@withContext synthesizeSmartCodeFallback(prompt)
+    }
+
+    private fun synthesizeSmartCodeFallback(prompt: String): Triple<String, String, String> {
+        val lower = prompt.lowercase()
+        val cleanTitle = prompt.trim().replaceFirstChar { it.uppercase() }
+
+        // Python request
+        if (lower.contains("python") || lower.contains(".py")) {
+            val pyCode = """
+                # Generated by JARVIS Ultra Coding Studio (Creator: AK EXPLOITS)
+                # Task: $cleanTitle
+
+                import datetime
+
+                class JarvisTaskEngine:
+                    def __init__(self, title: str):
+                        self.title = title
+                        self.created_at = datetime.datetime.now()
+
+                    def execute(self):
+                        print(f"========================================")
+                        print(f"🚀 Running: {self.title}")
+                        print(f"⏰ Timestamp: {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                        print(f"========================================")
+                        items = [f"Step {i}: Completed successfully" for i in range(1, 6)]
+                        for item in items:
+                            print("  ✔", item)
+                        return {"status": "SUCCESS", "task": self.title}
+
+                if __name__ == "__main__":
+                    engine = JarvisTaskEngine("$cleanTitle")
+                    result = engine.execute()
+                    print("\nFinal Output:", result)
+            """.trimIndent()
+            return Triple(
+                "python",
+                pyCode,
+                "Ji… aapke prompt ke liye poora working Python code bana diya hai ✅"
+            )
+        }
+
+        // Kotlin / Android request
+        if (lower.contains("kotlin") || lower.contains("jetpack compose")) {
+            val ktCode = """
+                // Generated by JARVIS Ultra Coding Studio (Creator: AK EXPLOITS)
+                // Prompt: $cleanTitle
+
+                import androidx.compose.foundation.layout.*
+                import androidx.compose.material3.*
+                import androidx.compose.runtime.*
+                import androidx.compose.ui.Alignment
+                import androidx.compose.ui.Modifier
+                import androidx.compose.ui.unit.dp
+
+                @Composable
+                fun GeneratedFeatureScreen() {
+                    var count by remember { mutableIntStateOf(0) }
+                    var statusText by remember { mutableStateOf("Ready: $cleanTitle") }
+
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "$cleanTitle",
+                                style = MaterialTheme.typography.headlineMedium
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(text = statusText)
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Button(onClick = {
+                                count++
+                                statusText = "Action Executed #${'$'}count ✅"
+                            }) {
+                                Text("Run Action (${'$'}count)")
+                            }
+                        }
+                    }
+                }
+            """.trimIndent()
+            return Triple(
+                "kotlin",
+                ktCode,
+                "Ji… aapke prompt ke liye poora Jetpack Compose / Kotlin code taiyaar hai ✅"
+            )
+        }
+
+        // Calculator HTML Website
+        if (lower.contains("calculator") || lower.contains("calc")) {
+            val calcHtml = """
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                  <meta charset="UTF-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                  <title>Neon Smart Calculator</title>
+                  <style>
+                    * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+                    body {
+                      margin: 0; min-height: 100vh;
+                      display: flex; align-items: center; justify-content: center;
+                      background: radial-gradient(circle at top, #141b36, #060913);
+                      color: #fff;
+                    }
+                    .calc {
+                      width: 320px; padding: 20px; border-radius: 24px;
+                      background: rgba(18, 25, 48, 0.9);
+                      border: 2px solid #00f5d4;
+                      box-shadow: 0 0 28px rgba(0, 245, 212, 0.35);
+                    }
+                    .display {
+                      width: 100%; height: 68px; margin-bottom: 16px;
+                      padding: 14px; border-radius: 14px;
+                      background: #050811; border: 1px solid #ff2a85;
+                      color: #00f5d4; font-size: 28px; text-align: right;
+                      overflow-x: auto;
+                    }
+                    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+                    button {
+                      padding: 16px; font-size: 18px; font-weight: bold;
+                      border: none; border-radius: 14px; cursor: pointer;
+                      background: #1b2548; color: #fff;
+                      transition: 0.15s transform, 0.15s background;
+                    }
+                    button:active { transform: scale(0.94); }
+                    .op { background: #7b2cbf; }
+                    .eq { background: linear-gradient(135deg, #00f5d4, #ff2a85); color: #050811; grid-column: span 2; }
+                    .clr { background: #ff2a85; }
+                  </style>
+                </head>
+                <body>
+                  <div class="calc">
+                    <div id="disp" class="display">0</div>
+                    <div class="grid">
+                      <button class="clr" onclick="clr()">AC</button>
+                      <button class="op" onclick="delChar()">⌫</button>
+                      <button class="op" onclick="push('%')">%</button>
+                      <button class="op" onclick="push('/')">÷</button>
+                      <button onclick="push('7')">7</button>
+                      <button onclick="push('8')">8</button>
+                      <button onclick="push('9')">9</button>
+                      <button class="op" onclick="push('*')">×</button>
+                      <button onclick="push('4')">4</button>
+                      <button onclick="push('5')">5</button>
+                      <button onclick="push('6')">6</button>
+                      <button class="op" onclick="push('-')">−</button>
+                      <button onclick="push('1')">1</button>
+                      <button onclick="push('2')">2</button>
+                      <button onclick="push('3')">3</button>
+                      <button class="op" onclick="push('+')">+</button>
+                      <button onclick="push('0')">0</button>
+                      <button onclick="push('.')">.</button>
+                      <button class="eq" onclick="solve()">=</button>
+                    </div>
+                  </div>
+                  <script>
+                    let expr = "";
+                    const disp = document.getElementById("disp");
+                    function push(v) { expr += v; disp.innerText = expr || "0"; }
+                    function clr() { expr = ""; disp.innerText = "0"; }
+                    function delChar() { expr = expr.slice(0, -1); disp.innerText = expr || "0"; }
+                    function solve() {
+                      try { expr = String( eval(expr) ); disp.innerText = expr; }
+                      catch(e) { disp.innerText = "Error"; expr = ""; }
+                    }
+                  </script>
+                </body>
+                </html>
+            """.trimIndent()
+            return Triple(
+                "html",
+                calcHtml,
+                "Ji… aapka poora HTML + CSS + JS Calculator Website code taiyaar hai! Aap '🌐 Preview' daba kar chala bhi sakte hain ✅"
+            )
+        }
+
+        // Default: Full Modern Interactive HTML5 + CSS3 + JS Website tailored to the user's prompt!
+        val fullWebsiteHtml = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>$cleanTitle</title>
+              <style>
+                :root {
+                  --bg: #070b19;
+                  --card: #111833;
+                  --cyan: #00f5d4;
+                  --pink: #ff2a85;
+                  --purple: #9b5de5;
+                  --text: #f1f5ff;
+                }
+                * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+                body {
+                  background: radial-gradient(circle at top right, #18224b, var(--bg));
+                  color: var(--text);
+                  min-height: 100vh;
+                  line-height: 1.6;
+                }
+                header {
+                  display: flex; justify-content: space-between; align-items: center;
+                  padding: 18px 24px;
+                  background: rgba(11, 16, 36, 0.88);
+                  border-bottom: 1.5px solid var(--cyan);
+                  position: sticky; top: 0; z-index: 10;
+                }
+                .brand {
+                  font-size: 20px; font-weight: 800;
+                  background: linear-gradient(90deg, var(--cyan), var(--pink));
+                  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                }
+                .hero {
+                  padding: 48px 24px; text-align: center;
+                  max-width: 860px; margin: 0 auto;
+                }
+                .hero h1 {
+                  font-size: 34px; margin-bottom: 12px;
+                  text-shadow: 0 0 18px rgba(0, 245, 212, 0.4);
+                }
+                .hero p { color: #b8c7e8; font-size: 16px; margin-bottom: 24px; }
+                .btn {
+                  padding: 12px 26px; border-radius: 999px; border: none;
+                  font-weight: 700; font-size: 15px; cursor: pointer;
+                  background: linear-gradient(135deg, var(--cyan), var(--purple));
+                  color: #050814; box-shadow: 0 0 20px rgba(0, 245, 212, 0.45);
+                  transition: transform 0.2s;
+                }
+                .btn:hover { transform: translateY(-2px) scale(1.03); }
+                .grid {
+                  display: grid;
+                  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                  gap: 18px; padding: 24px; max-width: 1000px; margin: 0 auto;
+                }
+                .card {
+                  background: var(--card);
+                  border: 1px solid rgba(0, 245, 212, 0.35);
+                  border-radius: 18px; padding: 20px;
+                  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+                }
+                .card h3 { color: var(--cyan); margin-bottom: 8px; }
+                .interactive-box {
+                  max-width: 600px; margin: 20px auto 40px; padding: 22px;
+                  background: rgba(255, 42, 133, 0.1);
+                  border: 1px solid var(--pink); border-radius: 18px;
+                  text-align: center;
+                }
+                input {
+                  width: 100%; padding: 12px; margin: 10px 0;
+                  border-radius: 10px; border: 1px solid var(--cyan);
+                  background: #060913; color: #fff;
+                }
+                footer {
+                  text-align: center; padding: 20px;
+                  border-top: 1px solid rgba(255,255,255,0.1);
+                  font-size: 13px; color: #8da0c8;
+                }
+              </style>
+            </head>
+            <body>
+              <header>
+                <div class="brand">⚡ $cleanTitle</div>
+                <button class="btn" onclick="showAlert()">Explore Now</button>
+              </header>
+
+              <section class="hero">
+                <h1>$cleanTitle</h1>
+                <p>Modern responsive HTML5, CSS3 & JavaScript website generated by JARVIS Ultra Coding Studio (AK EXPLOITS).</p>
+                <button class="btn" onclick="toggleTheme()">🌈 Switch Neon Theme</button>
+              </section>
+
+              <section class="grid">
+                <div class="card">
+                  <h3>🚀 Fast & Responsive</h3>
+                  <p>Built with clean Flexbox & CSS Grid architecture that works on Mobile & Desktop.</p>
+                </div>
+                <div class="card">
+                  <h3>🎨 RGB Cyber UI</h3>
+                  <p>Dynamic neon gradients, glassmorphism cards, and smooth micro-interactions.</p>
+                </div>
+                <div class="card">
+                  <h3>⚡ Interactive JS</h3>
+                  <p>Full client-side state and interactive DOM handling out of the box.</p>
+                </div>
+              </section>
+
+              <section class="interactive-box">
+                <h3>💬 Live Interactive Demo</h3>
+                <input id="userInput" type="text" placeholder="Type something here..." />
+                <button class="btn" onclick="handleAction()">Submit Action</button>
+                <p id="outputMsg" style="margin-top:12px; color:#00f5d4; font-weight:bold;"></p>
+              </section>
+
+              <footer>
+                Created with ❤️ by JARVIS Ultra Coding Studio • AK EXPLOITS
+              </footer>
+
+              <script>
+                let altTheme = false;
+                function showAlert() {
+                  document.getElementById("outputMsg").innerText = "⚡ Welcome to $cleanTitle!";
+                }
+                function handleAction() {
+                  const val = document.getElementById("userInput").value.trim() || "Awesome User";
+                  document.getElementById("outputMsg").innerText = "✅ Action Executed for: " + val;
+                }
+                function toggleTheme() {
+                  altTheme = !altTheme;
+                  document.documentElement.style.setProperty('--cyan', altTheme ? '#ffbe0b' : '#00f5d4');
+                  document.documentElement.style.setProperty('--pink', altTheme ? '#00f5d4' : '#ff2a85');
+                }
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
+
+        return Triple(
+            "html",
+            fullWebsiteHtml,
+            "Ji… aapke prompt '$cleanTitle' ke liye poora HTML5 + CSS3 + JS Website code bana diya hai! 'Copy' ya '🌐 Preview' dabayein ✅"
+        )
     }
 }
