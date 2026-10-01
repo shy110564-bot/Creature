@@ -602,14 +602,16 @@ fun HomeScreen(
 
         // 4. QUICK ONE-TAP COMMAND CHIPS
         val quickChips = listOf(
+            "▶️ Jisne tumko banaya hai uska channel open karo",
+            "👁️ View channel karo jo tumko banaya hai",
+            "🎬 Pehla video chalao",
             "⏰ Time batao",
             "📞 Mummy ko call karo",
             "💬 Rahul ko message karo main aa raha hun",
             "🔦 Torch on karo",
             "📅 Calendar kholo",
             "🖥️ Screen padho",
-            "🎵 Arijit Singh gaane lagao",
-            "📶 WiFi on karo"
+            "🎵 Arijit Singh gaane lagao"
         )
         Row(
             modifier = Modifier

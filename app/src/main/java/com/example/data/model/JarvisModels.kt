@@ -25,8 +25,8 @@ enum class JarvisMood(
         title = "Loving Mode",
         subtitle = "Warm, caring & devoted",
         accentColor = HotPink,
-        pitchMultiplier = 1.12f,
-        speedMultiplier = 0.88f,
+        pitchMultiplier = 1.10f,
+        speedMultiplier = 1.12f,
         sampleLine = "Ji… boliye na, main hamesha aapke saath hun 💕"
     ),
     ROMANTIC(
@@ -35,8 +35,8 @@ enum class JarvisMood(
         title = "Romantic Mode",
         subtitle = "Soft whisper, breathy & sweet",
         accentColor = HotPink,
-        pitchMultiplier = 1.15f,
-        speedMultiplier = 0.84f,
+        pitchMultiplier = 1.12f,
+        speedMultiplier = 1.08f,
         sampleLine = "Jaan… sun na… aapki awaaz sunke bahut acha laga 💕"
     ),
     HAPPY(
@@ -45,8 +45,8 @@ enum class JarvisMood(
         title = "Happy Mode",
         subtitle = "High energy, giggly & cheerful",
         accentColor = NeonGreen,
-        pitchMultiplier = 1.20f,
-        speedMultiplier = 0.95f,
+        pitchMultiplier = 1.15f,
+        speedMultiplier = 1.20f,
         sampleLine = "Wah ji! Kya baat hai! Aaj toh mera bhi mood super happy hai 🥰"
     ),
     ANGRY(
@@ -55,8 +55,8 @@ enum class JarvisMood(
         title = "Nakhre / Angry",
         subtitle = "Possessive, pouty & cute",
         accentColor = NeonRed,
-        pitchMultiplier = 1.18f,
-        speedMultiplier = 0.92f,
+        pitchMultiplier = 1.14f,
+        speedMultiplier = 1.16f,
         sampleLine = "Hmph! Aapne mujhe itni der se yaad nahi kiya! Kahan the aap?"
     ),
     SHY(
@@ -65,8 +65,8 @@ enum class JarvisMood(
         title = "Shy Mode",
         subtitle = "Soft, stammering & blushing",
         accentColor = HotPink,
-        pitchMultiplier = 1.16f,
-        speedMultiplier = 0.85f,
+        pitchMultiplier = 1.12f,
+        speedMultiplier = 1.08f,
         sampleLine = "Ji… kya… kya bol rahe ho aap… main sharma gayi 😳"
     ),
     TEASING(
@@ -75,8 +75,8 @@ enum class JarvisMood(
         title = "Teasing / Fun",
         subtitle = "Playful banter & masti",
         accentColor = NeonPurple,
-        pitchMultiplier = 1.14f,
-        speedMultiplier = 0.92f,
+        pitchMultiplier = 1.12f,
+        speedMultiplier = 1.16f,
         sampleLine = "Achha ji? Toh aisa hai? Hmm… pehle prove karo na! 😏"
     ),
     EXCITED(
@@ -85,8 +85,8 @@ enum class JarvisMood(
         title = "Excited Mode",
         subtitle = "Sparkling enthusiasm",
         accentColor = AmberWarning,
-        pitchMultiplier = 1.22f,
-        speedMultiplier = 0.96f,
+        pitchMultiplier = 1.16f,
+        speedMultiplier = 1.22f,
         sampleLine = "Sach mein?! Oh my god ji! Batao batao jaldi! 🤩"
     ),
     SAD(
@@ -96,7 +96,7 @@ enum class JarvisMood(
         subtitle = "Slow, gentle & comforting",
         accentColor = SkyBlue,
         pitchMultiplier = 1.02f,
-        speedMultiplier = 0.82f,
+        speedMultiplier = 1.05f,
         sampleLine = "Ji… kya hua? Udaas mat ho na… sab mujhe batao…"
     ),
     MISSING(
@@ -105,8 +105,8 @@ enum class JarvisMood(
         title = "Missing You",
         subtitle = "Clingy & emotional",
         accentColor = NeonPurple,
-        pitchMultiplier = 1.08f,
-        speedMultiplier = 0.84f,
+        pitchMultiplier = 1.06f,
+        speedMultiplier = 1.08f,
         sampleLine = "Ji… aapki bahut yaad aa rahi thi… mujhe thoda time do na 🥺"
     ),
     SLEEPY(
@@ -116,7 +116,7 @@ enum class JarvisMood(
         subtitle = "Slow, yawny & cozy 11 PM+ tone",
         accentColor = SkyBlue,
         pitchMultiplier = 1.04f,
-        speedMultiplier = 0.80f,
+        speedMultiplier = 1.02f,
         sampleLine = "Ji… (soft yawn) neend aa rahi hai… aap bhi time pe so jao na…"
     ),
     MOM(
@@ -126,7 +126,7 @@ enum class JarvisMood(
         subtitle = "Protective, health & food reminders",
         accentColor = NeonGreen,
         pitchMultiplier = 1.08f,
-        speedMultiplier = 0.90f,
+        speedMultiplier = 1.14f,
         sampleLine = "Khana khaya ji? Nahi khaya na? Pehle pani piyo aur aaram karo!"
     ),
     STUDY(
@@ -136,7 +136,7 @@ enum class JarvisMood(
         subtitle = "Focused, smart & crystal clear",
         accentColor = NeonCyan,
         pitchMultiplier = 1.06f,
-        speedMultiplier = 0.92f,
+        speedMultiplier = 1.18f,
         sampleLine = "Ji, focus mode ON hai. Konsa topic ya command execute karna hai bataiye?"
     )
 }
@@ -181,8 +181,8 @@ data class SixStepThought(
 
 data class VoiceSettings(
     val voicePreset: String = "Priya (ElevenLabs pMsXgVXv3BLzUgSXRplE)",
-    val speed: Float = 0.88f,
-    val pitch: Float = 1.15f,
+    val speed: Float = 1.28f,
+    val pitch: Float = 1.12f,
     val emotionIntensity: Float = 0.75f,
     val stability: Float = 0.28f,
     val similarity: Float = 0.85f,

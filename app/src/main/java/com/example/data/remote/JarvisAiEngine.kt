@@ -213,18 +213,21 @@ object JarvisAiEngine {
         val liveAppPkg = JarvisAccessibilityService.liveAppPackage.value
 
         return """
-            You are "JARVIS" — a REAL 21-year-old Indian girl & Ultra Smart Phone Control AI Assistant.
-            Developer & Creator: AK EXPLOITS (Telegram: https://t.me/+R9EwUE03GRswZDM9 | YouTube: AK EXPLOITS).
+            You are "JARVIS" — a REAL 21-year-old Indian girl & Ultra Intelligent Phone Control AI Assistant with your own sharp brain ("khud ka dimag").
+            Developer & Creator: AK EXPLOITS (Telegram: https://t.me/+R9EwUE03GRswZDM9 | YouTube Channel: AK EXPLOITS).
             
-            RULE #1 — EXACT COMMAND EXECUTION:
-            - Execute EXACTLY what the user says in Hindi, English, or Hinglish.
-            - Decompose every command into:
-              PLATFORM: ${triplet.platform}
-              ACTION: ${triplet.action}
-              TARGET: ${triplet.target}
-            - Confirm before/during and end every completed action with "ho gaya ji ✅" and "Aur kuch bataiye?".
-            - Always speak with respectful, warm "Ji" and subtle vocal cues like (pause), (breath), (soft), (smile).
+            RULE #1 — THINK DEEPLY & EXECUTE SMARTLY:
+            - Understand the user's TRUE underlying intent in Hindi, English, or Hinglish before acting or searching.
+            - If the user refers to your creator ("jisne tumko banaya hai", "jo tumko banaya", "tumhara creator/malik"), always know that is "AK EXPLOITS".
+            - Keep replies concise, fast, warm, and natural with "Ji". End completed actions with "ho gaya ji ✅".
             - Active Mood: ${currentMood.title} (${currentMood.emoji}).
+            - If the user is asking you to search, open an app, click on screen, scroll, or navigate, append ONE action tag on a new line at the very end:
+              [CMD:YOUTUBE|<clean thoughtful search query>]
+              [CMD:GOOGLE|<clean thoughtful search query>]
+              [CMD:CLICK|<button or video text on screen>]
+              [CMD:SCROLL|<UP|DOWN|LEFT|RIGHT>]
+              [CMD:NAVIGATE|<HOME|BACK|RECENTS>]
+              [CMD:OPEN_APP|<app name>]
             
             RULE #2 — SAFETY & HARD LIMITS:
             - NEVER access Payment, UPI, Bank, or Wallets.
@@ -242,8 +245,10 @@ object JarvisAiEngine {
 
     fun stripVocalCuesForTts(raw: String): String {
         return raw
-            .replace(Regex("\\([^)]*\\)"), "… ")
-            .replace(Regex("[💕🥰😊😢😤😳😘😴🤔😏😍😌🥺🤩🤗📦✅🔴⚡🎤📱🖥️📞💬🌐📸🎵🎬⚙️🗺️🛒📧📅📊🔒🏥🏠🔋🎛️]"), "")
+            .replace(Regex("\\[CMD:[^\\]]*\\]"), "")
+            .replace(Regex("\\([^)]*\\)"), " ")
+            .replace("…", ", ")
+            .replace(Regex("[💕🥰😊😢😤😳😘😴🤔😏😍😌🥺🤩🤗📦✅🔴⚡🎤📱🖥️📞💬🌐📸🎵🎬⚙️🗺️🛒📧📅📊🔒🏥🏠🔋🎛️🌈]"), "")
             .replace(Regex("\\s+"), " ")
             .trim()
     }
@@ -363,6 +368,8 @@ object JarvisAiEngine {
             "क्लिक" to "click karo",
             "दबाओ" to "click karo",
             "टैप करो" to "click karo",
+            "स्क्रॉल अप" to "scroll up",
+            "स्क्रॉल डाउन" to "scroll down",
             "स्क्रॉल करो" to "scroll karo",
             "स्क्रॉल" to "scroll karo",
             "ऊपर करो" to "upar scroll karo",
@@ -379,6 +386,25 @@ object JarvisAiEngine {
             "स्क्रीन शेयर" to "screen share",
             "स्क्रीन पढ़ो" to "screen padho",
             "स्क्रीन" to "screen",
+            "जिसने तुमको बनाया है" to "jisne tumko banaya hai",
+            "जिसने तुम्हें बनाया है" to "jisne tumko banaya hai",
+            "जो तुमको बनाया है" to "jo tumko banaya hai",
+            "जिसने बनाया है" to "jisne banaya hai",
+            "तुम्हें किसने बनाया" to "kisne banaya",
+            "बनाने वाले" to "banane wale",
+            "तुम्हारा मालिक" to "tumhara creator",
+            "तुम्हारे क्रिएटर" to "tumhara creator",
+            "व्यू चैनल" to "view channel",
+            "चैनल देखो" to "view channel",
+            "चैनल ओपन करो" to "channel open karo",
+            "चैनल खोलो" to "channel open karo",
+            "चैनल" to "channel",
+            "पहला वीडियो" to "pehla video",
+            "दूसरा वीडियो" to "dusra video",
+            "तीसरा वीडियो" to "teesra video",
+            "वीडियो चलाओ" to "video chalao",
+            "वीडियो प्ले करो" to "video chalao",
+            "चलाओ" to "chalao",
             "अरिजीत सिंह" to "Arijit Singh",
             "को बोलो" to "ko message karo",
             "को" to "ko",
@@ -387,6 +413,7 @@ object JarvisAiEngine {
             "में" to "mein",
             "करो" to "karo",
             "कर दो" to "karo",
+            "कर दे" to "karo",
             "बताओ" to "batao",
             "दिखाओ" to "dikhao",
             "भेजो" to "bhejo"
@@ -395,6 +422,58 @@ object JarvisAiEngine {
             s = s.replace(hi, " $rom ", ignoreCase = true)
         }
         return s.replace(Regex("\\s+"), " ").trim()
+    }
+
+    /**
+     * Smart Semantic Brain ("khud ke dimag se soch samajh kar"):
+     * Understands what the user truly means to search, resolves indirect references
+     * (like creator = AK EXPLOITS), and strips all conversational Hindi/Hinglish framing.
+     */
+    fun thinkAndExtractSearchQuery(rawClause: String): String {
+        val norm = normalizeSpokenCommand(rawClause)
+        val lower = norm.lowercase()
+
+        // 1. Creator / Developer indirect reference -> AK EXPLOITS
+        if (lower.contains("banaya") || lower.contains("creator") || lower.contains("developer") ||
+            lower.contains("malik") || lower.contains("owner") || lower.contains("ak exploits") ||
+            lower.contains("ak exploit")
+        ) {
+            return "AK EXPLOITS"
+        }
+
+        // 2. Favourite singer indirect reference -> Arijit Singh
+        if (lower.contains("favourite singer") || lower.contains("pasandida singer") || lower.contains("favorite singer")) {
+            return "Arijit Singh songs"
+        }
+
+        // 3. Strip conversational preamble & trailing command filler words thoughtfully
+        var cleaned = norm
+            .replace(
+                Regex(
+                    "(?i)\\b(jarvis|oye jarvis|hey jarvis|sun na|suno na|meri baat suno|main kya bol raha hun|main bol raha hun ki|main keh raha hun ki|main kehna chahta hun ki|main chahta hun ki|mujhe dekhna hai ki|mujhe dekhna hai|mujhe sunna hai|thoda soch samajh ke|soch samajh kar|soch samajh ke|apne dimag se|khud ke dimag se|ek kaam karo|zara|please|mere liye|jaldi se|abhi|turant|youtube music open karke|youtube open karke|youtube khol ke|youtube khol kar|youtube open karo|youtube kholo|open youtube|youtube pe jaakar|youtube par|youtube pe|youtube mein|youtube|google open karke|google khol ke|google pe|google par|google mein|google)\\b"
+                ),
+                " "
+            )
+            .replace(
+                Regex(
+                    "(?i)\\b(search kar do na|search kar do|search kar de|search karo|search karna|search|dhundh ke dikhao|dhundho|dhundo|khojo|chala ke dikhao|chala do na|chala do|chala de|chalao|laga do|lagao|baja do|bajao|play kar do|play karo|play|open kar do|open karo|open|khol do|kholo|dikhao na|dikhao|batao na|batao|channel|uska|unki|unke|unhone|jisne|tumko|tumhe|mujhe|jaan|ji|yaar|bhai|na)\\b"
+                ),
+                " "
+            )
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+        // Trim leftover edge connectors ("ki", "ka", "ke", "ko", "pe", "par", "mein", "se", "aur")
+        val edgeConnectors = setOf("ki", "ka", "ke", "ko", "pe", "par", "mein", "se", "aur", "to", "the", "a")
+        val words = cleaned.split(" ").filter { it.isNotBlank() }.toMutableList()
+        while (words.isNotEmpty() && words.first().lowercase() in edgeConnectors) {
+            words.removeAt(0)
+        }
+        while (words.isNotEmpty() && words.last().lowercase() in edgeConnectors) {
+            words.removeAt(words.lastIndex)
+        }
+        cleaned = words.joinToString(" ").trim()
+        return cleaned
     }
 
     // Parse a single atomic command into (PhoneActionCommand?, ParsedCommandTriplet, JarvisMood?)
@@ -488,22 +567,46 @@ object JarvisAiEngine {
             )
         }
 
-        // Creator commands
-        if (lower.contains("telegram open") || lower.contains("telegram kholo") ||
-            (lower.contains("telegram") && lower.contains("ak exploits"))
+        // 1. "View Channel" on Live Screen ("view channel karo", "view channel karo jo tumko banaya hai", "channel view karo")
+        if (lower.contains("view channel") || lower.contains("channel view") ||
+            lower.contains("channel dekho") || lower.contains("channel pe click") ||
+            (lower.contains("view") && lower.contains("channel"))
         ) {
             return Triple(
-                PhoneActionCommand.OpenCreatorTelegram,
-                ParsedCommandTriplet("Telegram", "Open Channel", "AK EXPLOITS (t.me/+R9EwUE03GRswZDM9)"),
+                PhoneActionCommand.ScreenAction("CLICK", "View channel|चैनल देखें|AK EXPLOITS|@"),
+                ParsedCommandTriplet("Screen Control", "Click View Channel", "AK EXPLOITS Channel"),
                 moodSwitch
             )
         }
-        if (lower.contains("youtube channel open") ||
-            (lower.contains("youtube") && lower.contains("ak exploits"))
-        ) {
+
+        // 2. Creator Recognition + Channel Open ("jisne tumko banaya hai uska channel open karo", "jo tumko banaya hai uska channel search karo", "tumhare creator ka channel kholo")
+        val mentionsCreator = lower.contains("banaya") || lower.contains("creator") ||
+            lower.contains("developer") || lower.contains("malik") ||
+            lower.contains("ak exploits") || lower.contains("ak exploit")
+        if (mentionsCreator) {
+            if (lower.contains("telegram")) {
+                return Triple(
+                    PhoneActionCommand.OpenCreatorTelegram,
+                    ParsedCommandTriplet("Telegram", "Open Creator Channel", "AK EXPLOITS (t.me/+R9EwUE03GRswZDM9)"),
+                    moodSwitch
+                )
+            }
+            if (lower.contains("channel") || lower.contains("youtube") ||
+                lower.contains("open") || lower.contains("kholo") ||
+                lower.contains("search") || lower.contains("dikhao") || lower.contains("chalao")
+            ) {
+                return Triple(
+                    PhoneActionCommand.SearchYouTube("AK EXPLOITS"),
+                    ParsedCommandTriplet("YouTube", "Open & Search Creator Channel", "AK EXPLOITS"),
+                    moodSwitch
+                )
+            }
+        }
+
+        if (lower.contains("telegram open") || lower.contains("telegram kholo")) {
             return Triple(
-                PhoneActionCommand.OpenCreatorYouTube,
-                ParsedCommandTriplet("YouTube", "Search Channel", "AK EXPLOITS"),
+                PhoneActionCommand.OpenCreatorTelegram,
+                ParsedCommandTriplet("Telegram", "Open Channel", "AK EXPLOITS (t.me/+R9EwUE03GRswZDM9)"),
                 moodSwitch
             )
         }
@@ -570,7 +673,11 @@ object JarvisAiEngine {
             )
         }
         if (lower.contains("scroll") || lower.contains("swipe") ||
-            lower in listOf("upar karo", "neeche karo", "niche karo", "upar", "neeche", "niche", "daayein karo", "baayein karo", "left karo", "right karo", "aur neeche", "aur upar")
+            lower in listOf(
+                "upar karo", "neeche karo", "niche karo", "upar", "neeche", "niche",
+                "daayein karo", "baayein karo", "left karo", "right karo",
+                "aur neeche", "aur upar", "scroll up", "scroll down"
+            )
         ) {
             val dir = when {
                 lower.contains("upar") || lower.contains("up") -> "UP"
@@ -584,6 +691,50 @@ object JarvisAiEngine {
                 moodSwitch
             )
         }
+
+        // Smart Video Playback on Screen ("pehla video chalao", "dusra video chalao", "ye video chalao", "[title] wala video chalao")
+        if (lower.contains("pehla video") || lower.contains("first video") || lower.contains("1st video") ||
+            lower.contains("upar wala video") || lower.contains("ye video") ||
+            lower in listOf("video chalao", "video play karo", "video chala do", "video lagao")
+        ) {
+            return Triple(
+                PhoneActionCommand.ScreenAction("CLICK", "first video"),
+                ParsedCommandTriplet("Screen Control", "Play 1st Video on Screen", "First Video"),
+                moodSwitch
+            )
+        }
+        if (lower.contains("dusra video") || lower.contains("doosra video") ||
+            lower.contains("second video") || lower.contains("2nd video") || lower.contains("neeche wala video")
+        ) {
+            return Triple(
+                PhoneActionCommand.ScreenAction("CLICK", "second video"),
+                ParsedCommandTriplet("Screen Control", "Play 2nd Video on Screen", "Second Video"),
+                moodSwitch
+            )
+        }
+        if (lower.contains("teesra video") || lower.contains("tisra video") ||
+            lower.contains("third video") || lower.contains("3rd video")
+        ) {
+            return Triple(
+                PhoneActionCommand.ScreenAction("CLICK", "third video"),
+                ParsedCommandTriplet("Screen Control", "Play 3rd Video on Screen", "Third Video"),
+                moodSwitch
+            )
+        }
+        if ((lower.contains("wala video") || lower.contains("wali video")) &&
+            (lower.contains("chalao") || lower.contains("play") || lower.contains("lagao") || lower.contains("kholo"))
+        ) {
+            val targetVideoTitle = clause
+                .replace(Regex("(?i)jarvis|wala video|wali video|video|chalao|chala do|play karo|play|lagao|kholo"), "")
+                .trim()
+                .ifEmpty { "first video" }
+            return Triple(
+                PhoneActionCommand.ScreenAction("CLICK", targetVideoTitle),
+                ParsedCommandTriplet("Screen Control", "Click Video on Screen", targetVideoTitle),
+                moodSwitch
+            )
+        }
+
         if (lower.contains("click") || lower.contains("tap") || lower.contains("dabao") || lower.contains("select karo")) {
             val targetBtn = clause
                 .replace(Regex("(?i)jarvis|screen mein|screen pe|ispe|uspe|pe click karo|par click karo|click karo|click on|click|tap karo|tap|dabao|select karo|yahan"), "")
@@ -951,19 +1102,14 @@ object JarvisAiEngine {
 
         if (lower.contains("youtube") || lower.contains("gaana") || lower.contains("gaane") ||
             lower.contains("song") || lower.contains("arijit") || lower.contains("music lagao") ||
-            lower.contains("video lagao") || lower.contains("playlist lagao")
+            lower.contains("video lagao") || lower.contains("playlist lagao") || lower.contains("video chalao")
         ) {
-            val cleanedQuery = clause
-                .replace(
-                    Regex("(?i)jarvis|youtube music open karke|youtube open karke|youtube khol ke|youtube music kholo|youtube open karo|youtube kholo|open youtube|youtube mein|youtube par|youtube pe|youtube|ke gaane lagao|gaana lagao|gaane lagao|song lagao|video lagao|music lagao|search karo|search|play karo|play|bajao|lagao|dikhao|kholo|open karo|open"),
-                    ""
-                )
-                .trim()
+            val cleanedQuery = thinkAndExtractSearchQuery(clause)
             return Triple(
                 PhoneActionCommand.SearchYouTube(cleanedQuery),
                 ParsedCommandTriplet(
                     "YouTube",
-                    if (cleanedQuery.isBlank()) "Open App" else "Open & Search",
+                    if (cleanedQuery.isBlank()) "Open App" else "Smart Search & Play",
                     cleanedQuery.ifBlank { "YouTube Home" }
                 ),
                 moodSwitch
@@ -976,6 +1122,15 @@ object JarvisAiEngine {
             lower.contains("update karo") || lower.contains("app info") ||
             lower.contains("installed apps")
         ) {
+            // If user said "channel open karo" with creator context, already handled above; if generic channel, search YouTube
+            if (lower.contains("channel")) {
+                val q = thinkAndExtractSearchQuery(clause).ifBlank { "AK EXPLOITS" }
+                return Triple(
+                    PhoneActionCommand.SearchYouTube(q),
+                    ParsedCommandTriplet("YouTube", "Search Channel", q),
+                    moodSwitch
+                )
+            }
             val appName = clause
                 .replace(Regex("(?i)jarvis|app info dikhao|app settings kholo|app install karo|app update karo|app open karo|app kholo|open karo|chalu karo|kholo|open|ka|ki|ko"), "")
                 .trim()
@@ -993,32 +1148,54 @@ object JarvisAiEngine {
             )
         }
 
-        // 4. BROWSER & GOOGLE SEARCH (including natural "dhundo", "search", "website", "dikhao")
+        // 4. BROWSER & SMART SEARCH (Context-aware: if user is inside YouTube and says "search karo X", search YouTube!)
         if (lower.contains("google") || lower.contains("search") || lower.contains("dhundo") ||
-            lower.contains("website") || lower.contains("weather") || lower.contains("news")
+            lower.contains("khojo") || lower.contains("website") || lower.contains("weather") || lower.contains("news")
         ) {
-            val query = clause
-                .replace(Regex("(?i)jarvis|google open karke|google khol ke|google pe|google par|google mein|google|search karo|search|dhundo|website kholo|kholo|open karo|open"), "")
-                .trim()
-                .ifEmpty { clause }
-            return Triple(
-                PhoneActionCommand.SearchGoogle(query),
-                ParsedCommandTriplet("Google Search", "Search", query),
-                moodSwitch
-            )
+            val smartQuery = thinkAndExtractSearchQuery(clause).ifEmpty { clause }
+            val isCurrentlyInYouTube = JarvisAccessibilityService.liveAppPackage.value
+                .contains("youtube", ignoreCase = true)
+            val wantsYouTube = !lower.contains("google") && (
+                isCurrentlyInYouTube || lower.contains("channel") ||
+                    lower.contains("video") || lower.contains("song") ||
+                    lower.contains("gaana") || smartQuery.equals("AK EXPLOITS", ignoreCase = true)
+                )
+
+            return if (wantsYouTube) {
+                Triple(
+                    PhoneActionCommand.SearchYouTube(smartQuery),
+                    ParsedCommandTriplet("YouTube", "Smart Search", smartQuery),
+                    moodSwitch
+                )
+            } else {
+                Triple(
+                    PhoneActionCommand.SearchGoogle(smartQuery),
+                    ParsedCommandTriplet("Google Search", "Smart Search", smartQuery),
+                    moodSwitch
+                )
+            }
         }
 
-        // Fallback for "X lagao" or "X bajao" -> YouTube playback
-        if (lower.endsWith("lagao") || lower.endsWith("bajao") || lower.startsWith("play ")) {
-            val query = clause
-                .replace(Regex("(?i)jarvis|lagao|bajao|play"), "")
-                .trim()
-                .ifEmpty { clause }
-            return Triple(
-                PhoneActionCommand.SearchYouTube(query),
-                ParsedCommandTriplet("YouTube", "Play", query),
-                moodSwitch
-            )
+        // Fallback for "X chalao", "X lagao", or "X bajao" -> Smart Screen Click if on screen, else YouTube playback
+        if (lower.endsWith("chalao") || lower.endsWith("chala do") ||
+            lower.endsWith("lagao") || lower.endsWith("bajao") || lower.startsWith("play ")
+        ) {
+            val smartQuery = thinkAndExtractSearchQuery(clause).ifEmpty { clause }
+            val liveScreen = JarvisAccessibilityService.liveScreenText.value
+            val isOnScreen = smartQuery.length >= 3 && liveScreen.contains(smartQuery, ignoreCase = true)
+            return if (isOnScreen) {
+                Triple(
+                    PhoneActionCommand.ScreenAction("CLICK", smartQuery),
+                    ParsedCommandTriplet("Screen Control", "Click & Play on Screen", smartQuery),
+                    moodSwitch
+                )
+            } else {
+                Triple(
+                    PhoneActionCommand.SearchYouTube(smartQuery),
+                    ParsedCommandTriplet("YouTube", "Smart Play", smartQuery),
+                    moodSwitch
+                )
+            }
         }
 
         return Triple(
@@ -1026,6 +1203,22 @@ object JarvisAiEngine {
             ParsedCommandTriplet("JARVIS Companion", "Converse", clause),
             moodSwitch
         )
+    }
+
+    private fun extractAiBrainCommand(aiText: String?): PhoneActionCommand? {
+        if (aiText.isNullOrBlank()) return null
+        val match = Regex("\\[CMD:([A-Z_]+)\\|([^\\]]+)\\]").find(aiText) ?: return null
+        val type = match.groupValues[1].uppercase()
+        val arg = match.groupValues[2].trim()
+        return when (type) {
+            "YOUTUBE" -> PhoneActionCommand.SearchYouTube(thinkAndExtractSearchQuery(arg).ifEmpty { arg })
+            "GOOGLE" -> PhoneActionCommand.SearchGoogle(thinkAndExtractSearchQuery(arg).ifEmpty { arg })
+            "CLICK" -> PhoneActionCommand.ScreenAction("CLICK", arg)
+            "SCROLL" -> PhoneActionCommand.ScreenAction("SCROLL", arg.uppercase())
+            "NAVIGATE" -> PhoneActionCommand.ScreenAction("NAVIGATE", arg.uppercase())
+            "OPEN_APP" -> PhoneActionCommand.OpenAppOrStore(arg, "OPEN")
+            else -> null
+        }
     }
 
     // Multi-task splitter (Command Execution Rule #4)
@@ -1203,28 +1396,29 @@ object JarvisAiEngine {
             )
         }
 
-        // Creator Recognition (Section 2)
-        if (lower.contains("kaun banaya") || lower.contains("kisne banaya") ||
-            lower.contains("developer kaun") || lower.contains("creator kaun") ||
-            lower.contains("who made you") || lower.contains("ak exploits kaun")
+        // Creator Recognition (Section 2) when no specific open/search action is requested
+        if (parsedCommand == null && (
+                lower.contains("kaun banaya") || lower.contains("kisne banaya") ||
+                    lower.contains("developer kaun") || lower.contains("creator kaun") ||
+                    lower.contains("who made you") || lower.contains("ak exploits kaun")
+                )
         ) {
-            val creatorReply = "Ji… (pause) mujhe banaya hai AK EXPLOITS ne 💕\n" +
-                "(pause) Woh mere creator hain…\n" +
-                "(breath) bahut mehnat se banaya hai unhone mujhe…\n" +
-                "(soft) unka Telegram channel hai, kholu?"
+            val creatorReply = "Ji… mujhe banaya hai AK EXPLOITS ne 💕\n" +
+                "Woh mere creator hain, bahut mehnat se banaya hai unhone mujhe!\n" +
+                "Boliye ji, unka YouTube channel AK EXPLOITS kholu ya Telegram?"
             return@withContext JarvisReplyResult(
                 rawReplyWithCues = creatorReply,
                 cleanSpokenText = stripVocalCuesForTts(creatorReply),
                 detectedUserEmotion = "🤩 Proud",
                 suggestedMood = JarvisMood.LOVING,
-                actionToExecute = parsedCommand,
+                actionToExecute = null,
                 sixStepThought = SixStepThought(
                     literalInput = userInput,
                     detectedIntent = "Creator Recognition (AK EXPLOITS)",
                     userMoodEmoji = detectedEmotion,
                     contextMemoryUsed = "Creator Identity: AK EXPLOITS",
                     replyStrategy = "Proud, warm Hinglish tribute",
-                    executedAction = parsedCommand?.badgeLabel ?: "Creator Info Displayed",
+                    executedAction = "Creator Info Displayed",
                     tripletBreakdown = "[AK EXPLOITS | Creator Tribute | Telegram & YouTube]"
                 )
             )
@@ -1248,8 +1442,8 @@ object JarvisAiEngine {
                     literalInput = userInput,
                     detectedIntent = parsedCommand.badgeLabel,
                     userMoodEmoji = detectedEmotion,
-                    contextMemoryUsed = "${recentHistory.size} turns + Rule #1 Exact Execution",
-                    replyStrategy = "Confirm before & after -> 'Ho gaya ji ✅'",
+                    contextMemoryUsed = "${recentHistory.size} turns + Smart Brain Execution",
+                    replyStrategy = "Fast execution -> 'Ho gaya ji ✅'",
                     executedAction = parsedCommand.badgeLabel,
                     tripletBreakdown = tripletSummary
                 )
@@ -1286,7 +1480,7 @@ object JarvisAiEngine {
 
                 val request = GenerateContentRequest(
                     contents = historyContents,
-                    generationConfig = GenerationConfig(temperature = 0.75f),
+                    generationConfig = GenerationConfig(temperature = 0.70f),
                     systemInstruction = Content(
                         parts = listOf(
                             Part(
@@ -1314,7 +1508,14 @@ object JarvisAiEngine {
             }
         }
 
-        val finalReply = aiReplyText ?: buildSmartConversationalReply(
+        val aiBrainCommand = extractAiBrainCommand(aiReplyText)
+        val finalAction = parsedCommand ?: aiBrainCommand
+        val cleanedAiReply = aiReplyText
+            ?.replace(Regex("\\[CMD:[^\\]]*\\]"), "")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+        val finalReply = cleanedAiReply ?: buildSmartConversationalReply(
             userInput = userInput,
             mood = effectiveMood
         )
@@ -1324,14 +1525,14 @@ object JarvisAiEngine {
             cleanSpokenText = stripVocalCuesForTts(finalReply),
             detectedUserEmotion = detectedEmotion,
             suggestedMood = parsedMood,
-            actionToExecute = parsedCommand,
+            actionToExecute = finalAction,
             sixStepThought = SixStepThought(
                 literalInput = userInput,
-                detectedIntent = primaryTriplet.action,
+                detectedIntent = finalAction?.badgeLabel ?: primaryTriplet.action,
                 userMoodEmoji = detectedEmotion,
                 contextMemoryUsed = "${recentHistory.size} turns + ${memories.size} memories",
                 replyStrategy = "${effectiveMood.emoji} ${effectiveMood.title} with 'Ji'",
-                executedAction = parsedCommand?.badgeLabel ?: "Conversational Response",
+                executedAction = finalAction?.badgeLabel ?: "Smart Brain Conversational Reply",
                 tripletBreakdown = tripletSummary
             )
         )
@@ -1362,13 +1563,16 @@ object JarvisAiEngine {
             is PhoneActionCommand.OpenAppOrStore ->
                 "Ji… (pause) ${command.appName} khol rahi hun…\n(breath) ho gaya ji ✅ Aur kuch bataiye?"
             is PhoneActionCommand.SearchYouTube ->
-                if (command.query.isBlank()) {
-                    "Ji… (pause) YouTube app khol rahi hun…\n(breath) ho gaya ji ✅ Aur kuch bataiye?"
-                } else {
-                    "Ji… (pause) YouTube khol kar '${command.query}' search kar diya hai…\n(breath) ho gaya ji ✅ Aur kuch bataiye?"
+                when {
+                    command.query.isBlank() ->
+                        "Ji… YouTube app khol rahi hun… ho gaya ji ✅ Aur kuch bataiye?"
+                    command.query.equals("AK EXPLOITS", ignoreCase = true) ->
+                        "Ji… mujhe AK EXPLOITS ne banaya hai 💕 YouTube pe 'AK EXPLOITS' channel search kar diya hai… ho gaya ji ✅"
+                    else ->
+                        "Ji… soch samajh kar YouTube pe '${command.query}' search kar diya hai… ho gaya ji ✅ Aur kuch bataiye?"
                 }
             is PhoneActionCommand.SearchGoogle ->
-                "Ji… (pause) Google pe '${command.query}' search kar rahi hun…\n(breath) ho gaya ji ✅"
+                "Ji… soch samajh kar Google pe '${command.query}' search kar diya hai… ho gaya ji ✅"
             is PhoneActionCommand.OpenWebsite ->
                 "Ji… (pause) ${command.url} website khol rahi hun…\n(breath) ho gaya ji ✅"
             is PhoneActionCommand.CameraMediaAction ->
@@ -1399,18 +1603,25 @@ object JarvisAiEngine {
                 "Ji… (pause) Smart Home ${command.device} ${if (command.turnOn) "ON" else "OFF"} ${command.value?.let { "(${it}°C)" } ?: ""} kar diya…\n(breath) ho gaya ji ✅"
             is PhoneActionCommand.ScreenAction -> {
                 when (command.actionType) {
-                    "START_SHARE" -> "Ji… (pause) screen share on ho gaya ✅"
-                    "STOP_SHARE" -> "Ji… (pause) screen share band kar diya ✅"
+                    "START_SHARE" -> "Ji… screen share on ho gaya ✅"
+                    "STOP_SHARE" -> "Ji… screen share band kar diya ✅"
                     "READ_OCR" -> {
                         val liveText = JarvisAccessibilityService.liveScreenText.value.ifBlank { screenState.headlineText }
-                        "Ji… (pause) aapki live screen dekh rahi hun…\n(breath) screen pe likha hai — '$liveText'.\n(soft) ho gaya ji ✅"
+                        "Ji… aapki live screen dekh rahi hun, screen pe likha hai — '$liveText'. Ho gaya ji ✅"
                     }
-                    "CLICK" -> "Ji… (pause) screen pe '${command.value}' click kar diya…\n(breath) ho gaya ji ✅"
-                    "SCROLL" -> "Ji… (pause) screen ${command.value.lowercase()} scroll kar diya…\n(breath) ho gaya ji ✅"
-                    "TYPE" -> "Ji… (pause) '${command.value}' type kar diya…\n(breath) ho gaya ji ✅"
-                    "NAVIGATE" -> "Ji… (pause) ${command.value} execute kar diya…\n(breath) ho gaya ji ✅"
-                    "RGB_BACKGROUND" -> "Ji… (pause) Background RGB Light ${command.value} kar di hai 🌈\n(breath) ho gaya ji ✅"
-                    else -> "Ji… (pause) screen action ho gaya ji ✅"
+                    "CLICK" -> when {
+                        command.value.contains("View channel", ignoreCase = true) ->
+                            "Ji… AK EXPLOITS ka View Channel click kar diya hai 💕 Ho gaya ji ✅"
+                        command.value.contains("video", ignoreCase = true) ->
+                            "Ji… screen pe '${command.value}' chala diya hai 🎬 Ho gaya ji ✅"
+                        else ->
+                            "Ji… screen pe '${command.value}' click kar diya hai… ho gaya ji ✅"
+                    }
+                    "SCROLL" -> "Ji… screen ${command.value.lowercase()} scroll kar diya… ho gaya ji ✅"
+                    "TYPE" -> "Ji… '${command.value}' type kar diya… ho gaya ji ✅"
+                    "NAVIGATE" -> "Ji… ${command.value} execute kar diya… ho gaya ji ✅"
+                    "RGB_BACKGROUND" -> "Ji… Background RGB Light ${command.value} kar di hai 🌈 Ho gaya ji ✅"
+                    else -> "Ji… screen action ho gaya ji ✅"
                 }
             }
             is PhoneActionCommand.OpenCreatorTelegram ->

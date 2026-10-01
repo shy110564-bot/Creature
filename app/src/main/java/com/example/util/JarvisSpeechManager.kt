@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class JarvisSpeechManager(
     private val context: Context,
@@ -30,6 +31,17 @@ class JarvisSpeechManager(
     private var isTtsReady = false
     private var speechRecognizer: SpeechRecognizer? = null
     private var lastListenStartMs = 0L
+
+    // Tracks what JARVIS is currently speaking so we can filter out self-echo while still hearing the user!
+    @Volatile
+    private var currentTtsCleanText: String = ""
+
+    // Tracks partial speech recognized while JARVIS is speaking in case SpeechRecognizer finishes without onResults
+    @Volatile
+    private var lastPartialWhileSpeaking: String = ""
+
+    // Queue of user commands spoken while JARVIS was talking — processed immediately when utterance finishes!
+    private val pendingUserSpeechQueue = ConcurrentLinkedQueue<String>()
 
     private val _isContinuousMicOn = MutableStateFlow(false)
     val isContinuousMicOn: StateFlow<Boolean> = _isContinuousMicOn.asStateFlow()
@@ -46,15 +58,15 @@ class JarvisSpeechManager(
     private val _audioAmplitude = MutableStateFlow(0.2f)
     val audioAmplitude: StateFlow<Float> = _audioAmplitude.asStateFlow()
 
-    // Watchdog that guarantees the mic keeps listening in the background 24/7 while Continuous Mode is ON
+    // Watchdog that guarantees the mic keeps listening in the background 24/7 (even while speaking!)
     private val backgroundWatchdog = object : Runnable {
         override fun run() {
             if (_isContinuousMicOn.value) {
                 val now = System.currentTimeMillis()
-                if (!_isSpeaking.value && (!_isListening.value || (now - lastListenStartMs > 14000L))) {
+                if (!_isListening.value || (now - lastListenStartMs > 12000L)) {
                     triggerListenCycle()
                 }
-                mainHandler.postDelayed(this, 2600L)
+                mainHandler.postDelayed(this, 2000L)
             }
         }
     }
@@ -77,23 +89,67 @@ class JarvisSpeechManager(
                 override fun onStart(utteranceId: String?) {
                     _isSpeaking.value = true
                     _audioAmplitude.value = 0.85f
+                    // Keep listening even while JARVIS is speaking!
+                    if (_isContinuousMicOn.value && !_isListening.value) {
+                        scheduleRestartIfContinuous(150L)
+                    }
                 }
 
                 override fun onDone(utteranceId: String?) {
-                    _isSpeaking.value = false
-                    _audioAmplitude.value = 0.15f
-                    scheduleRestartIfContinuous(350L)
+                    onTtsFinished()
                 }
 
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) {
-                    _isSpeaking.value = false
-                    _audioAmplitude.value = 0.15f
-                    scheduleRestartIfContinuous(350L)
+                    onTtsFinished()
                 }
             })
             isTtsReady = true
         }
+    }
+
+    private fun onTtsFinished() {
+        _isSpeaking.value = false
+        currentTtsCleanText = ""
+        _audioAmplitude.value = 0.15f
+
+        val leftoverPartial = lastPartialWhileSpeaking.trim()
+        lastPartialWhileSpeaking = ""
+        if (leftoverPartial.isNotEmpty() && pendingUserSpeechQueue.isEmpty()) {
+            pendingUserSpeechQueue.offer(leftoverPartial)
+        }
+
+        // If the user spoke while JARVIS was talking, immediately process their queued command now!
+        val nextUserSpeech = pendingUserSpeechQueue.poll()
+        if (!nextUserSpeech.isNullOrBlank()) {
+            mainHandler.post {
+                _livePartialTranscript.value = ""
+                onSpeechResult(nextUserSpeech)
+            }
+        }
+        scheduleRestartIfContinuous(160L)
+    }
+
+    private fun isEchoOfJarvisTts(recognized: String): Boolean {
+        val ttsText = currentTtsCleanText.lowercase().trim()
+        if (!_isSpeaking.value || ttsText.isBlank()) return false
+        val recLower = recognized.lowercase().trim()
+        if (recLower.length < 3) return true
+        // If user says a clear command keyword, NEVER treat it as echo
+        val commandKeywords = listOf(
+            "open", "kholo", "search", "dhundo", "call", "message", "whatsapp",
+            "youtube", "scroll", "upar", "neeche", "niche", "click", "view channel",
+            "channel", "video", "chalao", "lagao", "bajao", "back", "home", "torch",
+            "stop", "ruko", "chup", "rgb", "time", "alarm", "calendar", "banaya", "exploits"
+        )
+        if (commandKeywords.any { recLower.contains(it) && !ttsText.contains(recLower) }) {
+            return false
+        }
+        // Check word overlap with JARVIS's own ongoing TTS
+        val recWords = recLower.split(" ").filter { it.length > 2 }
+        if (recWords.isEmpty()) return false
+        val matchCount = recWords.count { word -> ttsText.contains(word) }
+        return (matchCount.toFloat() / recWords.size.toFloat()) >= 0.75f
     }
 
     fun speak(
@@ -103,23 +159,21 @@ class JarvisSpeechManager(
         isChupMode: Boolean = false
     ) {
         if (isChupMode || cleanText.isBlank()) {
-            scheduleRestartIfContinuous(400L)
+            scheduleRestartIfContinuous(200L)
             return
         }
         if (!isTtsReady) {
-            scheduleRestartIfContinuous(400L)
+            scheduleRestartIfContinuous(200L)
             return
         }
 
-        // Pause mic briefly while JARVIS speaks so it doesn't hear its own TTS output
-        mainHandler.post {
-            runCatching { speechRecognizer?.cancel() }
-            _isListening.value = false
-        }
+        currentTtsCleanText = cleanText
 
-        val finalPitch = (voiceSettings.pitch * mood.pitchMultiplier).coerceIn(0.6f, 1.8f)
-        val finalSpeed = (if (voiceSettings.whisperMode) voiceSettings.speed * 0.82f else voiceSettings.speed * mood.speedMultiplier)
-            .coerceIn(0.5f, 1.5f)
+        // Fast, lively speaking speed as requested by user ("thoda speed bolane ka iska Tej kar do")
+        val baseSpeed = voiceSettings.speed.coerceAtLeast(1.26f)
+        val finalPitch = (voiceSettings.pitch * mood.pitchMultiplier).coerceIn(0.90f, 1.45f)
+        val finalSpeed = (if (voiceSettings.whisperMode) baseSpeed * 0.95f else baseSpeed * mood.speedMultiplier)
+            .coerceIn(1.28f, 1.75f)
 
         tts?.setPitch(finalPitch)
         tts?.setSpeechRate(finalSpeed)
@@ -127,27 +181,32 @@ class JarvisSpeechManager(
         val utteranceId = UUID.randomUUID().toString()
         _isSpeaking.value = true
         tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+
+        // Ensure mic stays active while speaking so user can speak anytime and get answered right after!
+        if (_isContinuousMicOn.value && !_isListening.value) {
+            scheduleRestartIfContinuous(150L)
+        }
     }
 
     fun stopSpeaking() {
         tts?.stop()
         _isSpeaking.value = false
+        currentTtsCleanText = ""
         _audioAmplitude.value = 0.15f
     }
 
     fun startListening() {
         _isContinuousMicOn.value = true
         ensureBackgroundVoiceServiceRunning()
-        stopSpeaking()
         mainHandler.removeCallbacks(backgroundWatchdog)
-        mainHandler.postDelayed(backgroundWatchdog, 2600L)
+        mainHandler.postDelayed(backgroundWatchdog, 2000L)
         triggerListenCycle()
     }
 
     private fun ensureBackgroundVoiceServiceRunning() {
         runCatching {
             val serviceIntent = Intent(context, JarvisVoiceService::class.java).apply {
-                putExtra(JarvisVoiceService.EXTRA_STATUS, "🎤 Always-On Background Mic Active — Boliye Ji 💕")
+                putExtra(JarvisVoiceService.EXTRA_STATUS, "🎤 Always-On Mic Active — Bolte Rahiye Ji 💕")
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(serviceIntent)
@@ -164,7 +223,7 @@ class JarvisSpeechManager(
     }
 
     private val restartRunnable = Runnable {
-        if (_isContinuousMicOn.value && !_isSpeaking.value) {
+        if (_isContinuousMicOn.value) {
             triggerListenCycle()
         }
     }
@@ -190,7 +249,9 @@ class JarvisSpeechManager(
                             override fun onReadyForSpeech(params: Bundle?) {
                                 _isListening.value = true
                                 lastListenStartMs = System.currentTimeMillis()
-                                _livePartialTranscript.value = "🎤 Always-On Mic: Sun rahi hun ji…"
+                                if (pendingUserSpeechQueue.isEmpty()) {
+                                    _livePartialTranscript.value = "🎤 Always-On Mic: Sun rahi hun ji…"
+                                }
                             }
 
                             override fun onBeginningOfSpeech() {
@@ -212,28 +273,47 @@ class JarvisSpeechManager(
 
                             override fun onError(error: Int) {
                                 _isListening.value = false
-                                _livePartialTranscript.value = ""
                                 _audioAmplitude.value = 0.15f
+                                val savedPartial = lastPartialWhileSpeaking.trim()
+                                lastPartialWhileSpeaking = ""
+                                if (savedPartial.isNotEmpty() && !isEchoOfJarvisTts(savedPartial)) {
+                                    if (_isSpeaking.value) {
+                                        pendingUserSpeechQueue.offer(savedPartial)
+                                        _livePartialTranscript.value = "⏳ Sun liya: \"$savedPartial\" (Abhi jawab deti hun…)"
+                                    } else {
+                                        _livePartialTranscript.value = ""
+                                        onSpeechResult(savedPartial)
+                                    }
+                                }
                                 if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
                                     error == SpeechRecognizer.ERROR_CLIENT ||
                                     error == SpeechRecognizer.ERROR_SERVER
                                 ) {
                                     recreateRecognizer()
                                 }
-                                if (_isContinuousMicOn.value && !_isSpeaking.value) {
-                                    scheduleRestartIfContinuous(450L)
+                                if (_isContinuousMicOn.value) {
+                                    scheduleRestartIfContinuous(240L)
                                 }
                             }
 
                             override fun onResults(results: Bundle?) {
                                 _isListening.value = false
+                                lastPartialWhileSpeaking = ""
                                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                                 val best = matches?.firstOrNull()?.trim().orEmpty()
-                                _livePartialTranscript.value = ""
-                                if (best.isNotEmpty()) {
-                                    onSpeechResult(best)
-                                } else if (_isContinuousMicOn.value) {
-                                    scheduleRestartIfContinuous(350L)
+
+                                if (best.isNotEmpty() && !isEchoOfJarvisTts(best)) {
+                                    if (_isSpeaking.value) {
+                                        // User spoke while JARVIS was speaking! Queue it so JARVIS answers as soon as current sentence finishes
+                                        pendingUserSpeechQueue.offer(best)
+                                        _livePartialTranscript.value = "⏳ Sun liya: \"$best\" (Abhi jawab deti hun…)"
+                                    } else {
+                                        _livePartialTranscript.value = ""
+                                        onSpeechResult(best)
+                                    }
+                                }
+                                if (_isContinuousMicOn.value) {
+                                    scheduleRestartIfContinuous(200L)
                                 }
                             }
 
@@ -242,8 +322,14 @@ class JarvisSpeechManager(
                                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                                     ?.firstOrNull()
                                     .orEmpty()
-                                if (partial.isNotBlank()) {
-                                    _livePartialTranscript.value = partial
+                                    .trim()
+                                if (partial.isNotBlank() && !isEchoOfJarvisTts(partial)) {
+                                    if (_isSpeaking.value) {
+                                        lastPartialWhileSpeaking = partial
+                                        _livePartialTranscript.value = "👂 Sun rahi hun (Bolte rahiye): $partial"
+                                    } else {
+                                        _livePartialTranscript.value = partial
+                                    }
                                 }
                             }
 
@@ -259,13 +345,12 @@ class JarvisSpeechManager(
                         RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
                     )
-                    // en-IN recognizes Hinglish + English app names + Hindi phrases cleanly
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN")
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1600L)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1300L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1300L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1050L)
                 }
                 lastListenStartMs = System.currentTimeMillis()
                 speechRecognizer?.startListening(intent)
@@ -274,7 +359,7 @@ class JarvisSpeechManager(
                 _isListening.value = false
                 recreateRecognizer()
                 if (_isContinuousMicOn.value) {
-                    scheduleRestartIfContinuous(900L)
+                    scheduleRestartIfContinuous(600L)
                 }
             }
         }
@@ -282,6 +367,7 @@ class JarvisSpeechManager(
 
     fun stopListening() {
         _isContinuousMicOn.value = false
+        pendingUserSpeechQueue.clear()
         mainHandler.removeCallbacks(restartRunnable)
         mainHandler.removeCallbacks(backgroundWatchdog)
         mainHandler.post {
@@ -296,6 +382,7 @@ class JarvisSpeechManager(
 
     fun release() {
         _isContinuousMicOn.value = false
+        pendingUserSpeechQueue.clear()
         mainHandler.removeCallbacks(restartRunnable)
         mainHandler.removeCallbacks(backgroundWatchdog)
         runCatching {

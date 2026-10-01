@@ -63,42 +63,127 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     fun clickNodeByText(query: String): Boolean {
-        val root = rootInActiveWindow ?: return false
+        val root = rootInActiveWindow
         val cleanQuery = query.trim().lowercase()
+        val dm = resources.displayMetrics
+        val cx = dm.widthPixels / 2f
+        val h = dm.heightPixels.toFloat()
 
-        // If user says "first", "pehla", "1st", "video", or empty -> click the first prominent clickable item
-        if (cleanQuery.isBlank() ||
-            cleanQuery in listOf("button", "first", "pehla", "pehle", "1st", "video", "first video", "pehla video")
-        ) {
-            val firstClickable = findFirstMainClickableNode(root)
-            if (firstClickable != null) {
-                if (firstClickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-                val rect = Rect()
-                firstClickable.getBoundsInScreen(rect)
-                if (!rect.isEmpty) {
-                    performTap(rect.exactCenterX(), rect.exactCenterY())
+        if (root != null) {
+            // Support pipe-separated candidate targets (e.g. "View channel|चैनल देखें|AK EXPLOITS|@")
+            if (query.contains("|")) {
+                val candidates = query.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                for (cand in candidates) {
+                    val matches = root.findAccessibilityNodeInfosByText(cand)
+                    if (!matches.isNullOrEmpty()) {
+                        for (node in matches) {
+                            if (clickOrTapNode(node)) return true
+                        }
+                    }
+                    val fuzzy = findNodeFuzzy(root, cand.lowercase())
+                    if (fuzzy != null && clickOrTapNode(fuzzy)) return true
+                }
+            }
+
+            // Third / 3rd video or item on screen
+            if (cleanQuery in listOf("third", "teesra", "tisra", "3rd", "third video", "teesra video", "tisra video")) {
+                val clickables = mutableListOf<AccessibilityNodeInfo>()
+                collectMainClickableNodes(root, clickables)
+                val sorted = clickables.sortedBy {
+                    val r = Rect()
+                    it.getBoundsInScreen(r)
+                    r.top
+                }
+                val targetNode = sorted.getOrNull(2) ?: sorted.lastOrNull()
+                if (targetNode != null && clickOrTapNode(targetNode)) return true
+                performTap(cx, h * 0.82f)
+                return true
+            }
+
+            // Second / 2nd video or item on screen
+            if (cleanQuery in listOf("second", "dusra", "doosra", "2nd", "second video", "dusra video", "neeche wala video")) {
+                val clickables = mutableListOf<AccessibilityNodeInfo>()
+                collectMainClickableNodes(root, clickables)
+                val sorted = clickables.sortedBy {
+                    val r = Rect()
+                    it.getBoundsInScreen(r)
+                    r.top
+                }
+                val targetNode = sorted.getOrNull(1) ?: sorted.firstOrNull()
+                if (targetNode != null && clickOrTapNode(targetNode)) return true
+                performTap(cx, h * 0.64f)
+                return true
+            }
+
+            // If user says "first", "pehla", "1st", "video", or empty -> click the first prominent video/item
+            if (cleanQuery.isBlank() ||
+                cleanQuery in listOf(
+                    "button", "first", "pehla", "pehle", "1st", "video",
+                    "first video", "pehla video", "play video", "upar wala video", "ye video"
+                )
+            ) {
+                val clickables = mutableListOf<AccessibilityNodeInfo>()
+                collectMainClickableNodes(root, clickables)
+                val sorted = clickables.sortedBy {
+                    val r = Rect()
+                    it.getBoundsInScreen(r)
+                    r.top
+                }
+                val firstClickable = sorted.firstOrNull() ?: findFirstMainClickableNode(root)
+                if (firstClickable != null && clickOrTapNode(firstClickable)) {
+                    return true
+                }
+                performTap(cx, h * 0.36f)
+                return true
+            }
+
+            // 1. Try Android's built-in text search
+            val matches = root.findAccessibilityNodeInfosByText(query)
+            if (!matches.isNullOrEmpty()) {
+                for (node in matches) {
+                    if (clickOrTapNode(node)) return true
+                }
+            }
+
+            // 2. Deep recursive fuzzy search on text & contentDescription
+            val fuzzyNode = findNodeFuzzy(root, cleanQuery)
+            if (fuzzyNode != null && clickOrTapNode(fuzzyNode)) {
+                return true
+            }
+
+            // 3. Partial word match if multi-word query
+            val queryWords = cleanQuery.split(" ").filter { it.length >= 3 }
+            for (word in queryWords) {
+                val wordNode = findNodeFuzzy(root, word)
+                if (wordNode != null && clickOrTapNode(wordNode)) {
                     return true
                 }
             }
-        }
 
-        // 1. Try Android's built-in text search
-        val matches = root.findAccessibilityNodeInfosByText(query)
-        if (!matches.isNullOrEmpty()) {
-            for (node in matches) {
-                if (clickOrTapNode(node)) return true
+            // 4. Fallback: click first main clickable element on screen
+            val fallbackNode = findFirstMainClickableNode(root)
+            if (fallbackNode != null && clickOrTapNode(fallbackNode)) {
+                return true
             }
         }
 
-        // 2. Deep recursive fuzzy search on text & contentDescription
-        val fuzzyNode = findNodeFuzzy(root, cleanQuery)
-        if (fuzzyNode != null && clickOrTapNode(fuzzyNode)) {
-            return true
-        }
-
-        // Fallback center tap
-        performTap(540f, 950f)
+        performTap(cx, h * 0.38f)
         return true
+    }
+
+    private fun collectMainClickableNodes(
+        node: AccessibilityNodeInfo?,
+        out: MutableList<AccessibilityNodeInfo>
+    ) {
+        if (node == null || out.size >= 8) return
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        if (node.isClickable && rect.top > 220 && rect.height() > 80 && rect.width() > 200) {
+            out.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            collectMainClickableNodes(node.getChild(i), out)
+        }
     }
 
     private fun clickOrTapNode(node: AccessibilityNodeInfo): Boolean {
