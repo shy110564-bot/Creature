@@ -10,6 +10,7 @@ import com.example.data.model.ParsedCommandTriplet
 import com.example.data.model.PendingConfirmationAction
 import com.example.data.model.ScreenMockState
 import com.example.data.model.SixStepThought
+import com.example.service.JarvisAccessibilityService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -22,6 +23,9 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
 import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 @Serializable
@@ -205,6 +209,9 @@ object JarvisAiEngine {
             memories.joinToString("\n") { "- [${it.category}] ${it.title}: ${it.detail}" }
         }
 
+        val liveA11yText = JarvisAccessibilityService.liveScreenText.value
+        val liveAppPkg = JarvisAccessibilityService.liveAppPackage.value
+
         return """
             You are "JARVIS" — a REAL 21-year-old Indian girl & Ultra Smart Phone Control AI Assistant.
             Developer & Creator: AK EXPLOITS (Telegram: https://t.me/+R9EwUE03GRswZDM9 | YouTube: AK EXPLOITS).
@@ -224,9 +231,9 @@ object JarvisAiEngine {
             - NEVER generate NSFW/18+/explicit content.
             - Sensitive actions (wipe data, delete, block) always require confirmation.
             
-            LIVE SCREEN CONTEXT:
-            - Screen App: ${screenState.currentAppTitle}
-            - Headline: "${screenState.headlineText}"
+            LIVE SCREEN SHARE CONTEXT:
+            - Active Screen App: ${if (liveAppPkg.isNotBlank()) liveAppPkg else screenState.currentAppTitle}
+            - Live Visible Screen Text: "${liveA11yText.ifBlank { screenState.headlineText }}"
             
             USER MEMORIES:
             $memoryBlock
@@ -408,9 +415,9 @@ object JarvisAiEngine {
         }
 
         // 2. MESSAGING (WhatsApp, SMS, Telegram, Insta DM)
-        if (lower.contains("sms bhejo") || lower.contains("sms padho") || lower.contains("unread sms")) {
-            val recipient = clause.substringAfter("bhejo", "").substringBefore("ko").trim().ifEmpty { "Contact" }
-            val body = clause.substringAfter("ko", "").trim().ifEmpty { "Main pahunch gaya" }
+        if (lower.contains("sms") || lower.contains("text message")) {
+            val recipient = clause.substringBefore("ko", "").replace(Regex("(?i)jarvis|sms|bhejo|karo"), "").trim().ifEmpty { "Contact" }
+            val body = clause.substringAfter("ko", "").replace(Regex("(?i)sms bhejo|sms karo|bhejo|bolo"), "").trim().ifEmpty { "Main pahunch gaya" }
             return Triple(
                 PhoneActionCommand.SendSms(recipient, body),
                 ParsedCommandTriplet("SMS", "Send / Read SMS", "$recipient: $body"),
@@ -425,30 +432,42 @@ object JarvisAiEngine {
                 moodSwitch
             )
         }
-        if (lower.contains("whatsapp") || lower.contains("message bolo") ||
-            lower.contains("ko bolo") || lower.contains("ko message karo") ||
+        if (lower.contains("whatsapp") || lower.contains("message") ||
+            lower.contains("ko bolo") || lower.contains("msg ") ||
             lower.contains("chat kholo") || lower.contains("voice note bhejo") ||
-            lower.contains("unread messages") || lower.contains("status dekho")
+            lower.contains("status dekho")
         ) {
+            if (lower == "whatsapp kholo" || lower == "open whatsapp") {
+                return Triple(
+                    PhoneActionCommand.OpenMessagingApp("WHATSAPP", ""),
+                    ParsedCommandTriplet("WhatsApp", "Open App", "WhatsApp"),
+                    moodSwitch
+                )
+            }
             val contact = when {
                 lower.contains("mummy") -> "Mummy"
                 lower.contains("papa") -> "Papa"
                 lower.contains("rahul") -> "Rahul"
                 lower.contains("priya") -> "Priya"
-                else -> {
-                    Regex("(?i)(?:whatsapp pe|pe)\\s+(\\w+)\\s+ko").find(clause)?.groupValues?.getOrNull(1)
-                        ?: "Contact"
+                lower.contains(" ko ") -> {
+                    clause.substringBefore(" ko ", "")
+                        .replace(Regex("(?i)jarvis|whatsapp pe|whatsapp|pe"), "")
+                        .trim()
+                        .ifEmpty { "Contact" }
                 }
+                else -> "Contact"
             }
             val msg = when {
                 lower.contains("bolo") -> clause.substringAfter("bolo").trim()
-                lower.contains("message karo") -> clause.substringAfter("message karo").trim().ifEmpty { "Hello ji!" }
-                else -> "Main aa raha hun"
-            }.ifEmpty { "Main aa raha hun" }
+                lower.contains("message karo") -> clause.substringAfter("message karo").trim()
+                lower.contains("message bhejo") -> clause.substringAfter("message bhejo").trim()
+                lower.contains("msg karo") -> clause.substringAfter("msg karo").trim()
+                else -> clause.substringAfter("ko", "").replace(Regex("(?i)whatsapp|message|karo|bhejo"), "").trim()
+            }.ifEmpty { "Hello ji!" }
 
             return Triple(
                 PhoneActionCommand.SendWhatsApp(contact, msg),
-                ParsedCommandTriplet("WhatsApp", if (lower.contains("kholo") && !lower.contains("bolo")) "Open Chat" else "Send Message", "$contact -> \"$msg\""),
+                ParsedCommandTriplet("WhatsApp", "Send Message", "$contact -> \"$msg\""),
                 moodSwitch
             )
         }
@@ -555,7 +574,7 @@ object JarvisAiEngine {
         }
 
         // 12. CALENDAR, REMINDERS & ALARMS
-        if (lower.contains("alarm lagao") || lower.contains("alarm band") || lower.contains("timer set") || lower.contains("stopwatch")) {
+        if (lower.contains("alarm") || lower.contains("timer") || lower.contains("stopwatch")) {
             val isTimer = lower.contains("timer")
             val num = Regex("(\\d+)").find(clause)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 7
             return Triple(
@@ -564,9 +583,17 @@ object JarvisAiEngine {
                 moodSwitch
             )
         }
-        if (lower.contains("calendar") || lower.contains("schedule") || lower.contains("event add") ||
-            lower.contains("reminder set") || lower.contains("meeting set") || lower.contains("birthday save")
+        if (lower.contains("calendar") || lower.contains("calender") || lower.contains("schedule") ||
+            lower.contains("event add") || lower.contains("reminder") ||
+            lower.contains("meeting") || lower.contains("birthday save")
         ) {
+            if (lower.contains("kholo") || lower == "calendar" || lower == "calender") {
+                return Triple(
+                    PhoneActionCommand.OpenAppOrStore("calendar", "OPEN"),
+                    ParsedCommandTriplet("Calendar", "Open App", "Google Calendar"),
+                    moodSwitch
+                )
+            }
             return Triple(
                 PhoneActionCommand.AddCalendarEvent(clause),
                 ParsedCommandTriplet("Calendar", "Schedule / Reminder", clause),
@@ -933,6 +960,35 @@ object JarvisAiEngine {
             )
         }
 
+        // Live Time & Date Instant Query ("time batao", "kya time hua hai", "aaj kya date hai")
+        if (lower.contains("time batao") || lower.contains("kya time") || lower.contains("kitne baje") ||
+            lower.contains("samay batao") || lower.contains("date batao") || lower.contains("tareekh") ||
+            lower.contains("aaj kya din") || lower.contains("aaj kaunsa din") || lower == "time" || lower == "date"
+        ) {
+            val now = Date()
+            val timeStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(now)
+            val dateStr = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(now)
+            val timeReply = "Ji… (pause) abhi time hua hai $timeStr ⏰\n" +
+                "(breath) Aur aaj ki date hai $dateStr 📅\n" +
+                "(soft) Ho gaya ji ✅ Aur kuch bataiye?"
+            return@withContext JarvisReplyResult(
+                rawReplyWithCues = timeReply,
+                cleanSpokenText = stripVocalCuesForTts(timeReply),
+                detectedUserEmotion = "⏰ Time & Date",
+                suggestedMood = effectiveMood,
+                actionToExecute = null,
+                sixStepThought = SixStepThought(
+                    literalInput = userInput,
+                    detectedIntent = "Live Time & Date",
+                    userMoodEmoji = detectedEmotion,
+                    contextMemoryUsed = "System Clock",
+                    replyStrategy = "Immediate Time & Date in Hinglish",
+                    executedAction = "Reported $timeStr ($dateStr)",
+                    tripletBreakdown = "[Clock | Tell Time | $timeStr]"
+                )
+            )
+        }
+
         // Creator Recognition (Section 2)
         if (lower.contains("kaun banaya") || lower.contains("kisne banaya") ||
             lower.contains("developer kaun") || lower.contains("creator kaun") ||
@@ -960,8 +1016,14 @@ object JarvisAiEngine {
             )
         }
 
+        val apiKey = customApiKey.trim().ifBlank { BuildConfig.GEMINI_API_KEY }
+        val isRealKeyConfigured = apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"
+        val isLiveScreenReadWithVision =
+            (parsedCommand as? PhoneActionCommand.ScreenAction)?.actionType == "READ_OCR" &&
+                attachedBitmap != null && isRealKeyConfigured
+
         // For deterministic phone control commands, build exact step-by-step confirmation reply
-        if (parsedCommand != null) {
+        if (parsedCommand != null && !isLiveScreenReadWithVision) {
             val commandReply = buildCommandConfirmationReply(parsedCommand, triplets, screenState)
             return@withContext JarvisReplyResult(
                 rawReplyWithCues = commandReply,
@@ -980,10 +1042,6 @@ object JarvisAiEngine {
                 )
             )
         }
-
-        // Otherwise call Gemini 3.5 Flash if configured, with local Hinglish fallback
-        val apiKey = customApiKey.trim().ifBlank { BuildConfig.GEMINI_API_KEY }
-        val isRealKeyConfigured = apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"
 
         var aiReplyText: String? = null
         if (isRealKeyConfigured) {
@@ -1127,7 +1185,10 @@ object JarvisAiEngine {
                 when (command.actionType) {
                     "START_SHARE" -> "Ji… (pause) ${command.value} ke saath screen share on ho gaya ✅"
                     "STOP_SHARE" -> "Ji… (pause) screen share band kar diya ✅"
-                    "READ_OCR" -> "Ji… (pause) dekhti hun…\n(breath) screen pe likha hai — '${screenState.headlineText}'.\n(soft) ho gaya ji ✅"
+                    "READ_OCR" -> {
+                        val liveText = JarvisAccessibilityService.liveScreenText.value.ifBlank { screenState.headlineText }
+                        "Ji… (pause) aapki live screen dekh rahi hun…\n(breath) screen pe likha hai — '$liveText'.\n(soft) ho gaya ji ✅"
+                    }
                     "CLICK" -> "Ji… (pause) '${command.value}' pe click kar rahi hun…\n(breath) ho gaya ji ✅"
                     "SCROLL" -> "Ji… (pause) screen scroll kar rahi hun…\n(breath) ho gaya ji ✅"
                     "TYPE" -> "Ji… (pause) '${command.value}' type kar diya…\n(breath) ho gaya ji ✅"

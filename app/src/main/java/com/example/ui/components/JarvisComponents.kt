@@ -125,7 +125,7 @@ val FullRgbSpectrum = listOf(
     Color(0xFFFF0055)  // Loop back seamlessly
 )
 
-// CONTINUOUS RGB EDGE, CORNER, LINE & BACKGROUND LIGHTING SYSTEM
+// CONTINUOUS AUTOMATIC RGB COLOR-MORPHING EDGE, 4-CORNER, LINE & BACKGROUND LIGHTING SYSTEM
 @Composable
 fun RgbEdgeAndBackgroundContainer(
     modifier: Modifier = Modifier,
@@ -133,24 +133,46 @@ fun RgbEdgeAndBackgroundContainer(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "rgb_master_lighting")
 
-    val rgbAngle by infiniteTransition.animateFloat(
+    // Smoothly cycles 0 -> 360 degrees continuously for automatic RGB color changing
+    val rgbHue by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3600, easing = LinearEasing),
+            animation = tween(durationMillis = 2200, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "rgb_sweep_angle"
+        label = "rgb_auto_hue"
+    )
+
+    // Secondary counter-rotating RGB hue for multi-layered color shifting
+    val secondaryHue by infiniteTransition.animateFloat(
+        initialValue = 360f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rgb_secondary_hue"
     )
 
     val bgWavePhase by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 6.28318f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 6000, easing = LinearEasing),
+            animation = tween(durationMillis = 4500, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "rgb_bg_wave"
+    )
+
+    val cornerPulse by infiniteTransition.animateFloat(
+        initialValue = 0.86f,
+        targetValue = 1.18f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 950, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "rgb_corner_pulse"
     )
 
     Box(
@@ -158,63 +180,63 @@ fun RgbEdgeAndBackgroundContainer(
             .fillMaxSize()
             .background(AmoledBlack)
     ) {
-        // 1. Continuous Animated RGB Background Aura + Travelling Corner & Edge Border Lines
+        // 1. Automatic Color-Changing RGB Background Aura + 4-Corner Intense RGB Lights
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val center = Offset(w / 2f, h / 2f)
 
-            // Moving multi-color RGB background aura blobs
+            // Moving background aura blobs whose colors automatically morph through the full RGB wheel
+            val orb1Color = Color.hsv((rgbHue) % 360f, 1f, 1f)
+            val orb2Color = Color.hsv((rgbHue + 120f) % 360f, 1f, 1f)
+            val orb3Color = Color.hsv((rgbHue + 240f) % 360f, 1f, 1f)
+
             val orb1Center = Offset(
-                x = w * (0.25f + 0.18f * cos(bgWavePhase)),
-                y = h * (0.20f + 0.12f * sin(bgWavePhase))
+                x = w * (0.25f + 0.22f * cos(bgWavePhase)),
+                y = h * (0.22f + 0.15f * sin(bgWavePhase))
             )
             val orb2Center = Offset(
-                x = w * (0.75f + 0.18f * sin(bgWavePhase * 0.8f)),
-                y = h * (0.78f + 0.12f * cos(bgWavePhase * 0.8f))
+                x = w * (0.75f + 0.22f * sin(bgWavePhase * 0.85f)),
+                y = h * (0.78f + 0.15f * cos(bgWavePhase * 0.85f))
             )
             val orb3Center = Offset(
-                x = w * (0.50f + 0.22f * sin(bgWavePhase * 1.2f)),
-                y = h * (0.48f + 0.16f * cos(bgWavePhase * 1.2f))
+                x = w * (0.50f + 0.24f * sin(bgWavePhase * 1.2f)),
+                y = h * (0.50f + 0.18f * cos(bgWavePhase * 1.2f))
             )
 
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF00E5FF).copy(alpha = 0.16f), Color.Transparent),
+                    colors = listOf(orb1Color.copy(alpha = 0.26f), Color.Transparent),
                     center = orb1Center,
-                    radius = size.minDimension * 0.65f
+                    radius = size.minDimension * 0.72f
                 ),
-                radius = size.minDimension * 0.65f,
+                radius = size.minDimension * 0.72f,
                 center = orb1Center
             )
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFFFF0055).copy(alpha = 0.15f), Color.Transparent),
+                    colors = listOf(orb2Color.copy(alpha = 0.24f), Color.Transparent),
                     center = orb2Center,
-                    radius = size.minDimension * 0.68f
+                    radius = size.minDimension * 0.74f
                 ),
-                radius = size.minDimension * 0.68f,
+                radius = size.minDimension * 0.74f,
                 center = orb2Center
             )
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF00FF66).copy(alpha = 0.11f), Color(0xFFB14EFF).copy(alpha = 0.08f), Color.Transparent),
+                    colors = listOf(
+                        orb3Color.copy(alpha = 0.22f),
+                        orb1Color.copy(alpha = 0.10f),
+                        Color.Transparent
+                    ),
                     center = orb3Center,
-                    radius = size.minDimension * 0.60f
+                    radius = size.minDimension * 0.68f
                 ),
-                radius = size.minDimension * 0.60f,
+                radius = size.minDimension * 0.68f,
                 center = orb3Center
             )
 
-            // 4-Corner RGB Intense Glow Halos
-            val cornerRadiusGlow = size.minDimension * 0.35f
-            val cornerColors = listOf(
-                Color(0xFFFF0055),
-                Color(0xFF00E5FF),
-                Color(0xFF00FF66),
-                Color(0xFFB14EFF)
-            )
-            val shiftIdx = ((rgbAngle / 90f).toInt()) % 4
+            // 4-Corner Automatic RGB Color-Changing Spotlights (Top-Left, Top-Right, Bottom-Right, Bottom-Left)
+            val cornerRadiusGlow = size.minDimension * 0.56f * cornerPulse
             val corners = listOf(
                 Offset(0f, 0f),
                 Offset(w, 0f),
@@ -222,10 +244,15 @@ fun RgbEdgeAndBackgroundContainer(
                 Offset(0f, h)
             )
             corners.forEachIndexed { idx, pt ->
-                val c = cornerColors[(idx + shiftIdx) % cornerColors.size]
+                val cPrimary = Color.hsv((rgbHue + idx * 90f) % 360f, 1f, 1f)
+                val cSecondary = Color.hsv((secondaryHue + idx * 90f + 45f) % 360f, 1f, 1f)
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(c.copy(alpha = 0.28f), Color.Transparent),
+                        colors = listOf(
+                            cPrimary.copy(alpha = 0.65f),
+                            cSecondary.copy(alpha = 0.30f),
+                            Color.Transparent
+                        ),
                         center = pt,
                         radius = cornerRadiusGlow
                     ),
@@ -238,61 +265,61 @@ fun RgbEdgeAndBackgroundContainer(
         // Main App Content
         content()
 
-        // 2. Top-Layer Travelling RGB Edge & Corner Line Overlay (Non-blocking touch)
+        // 2. Top-Layer Automatic RGB Color-Shifting Edge & 4-Corner Border Lines
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
             val center = Offset(w / 2f, h / 2f)
-            val cornerRad = 28.dp.toPx()
+            val cornerRad = 22.dp.toPx()
 
-            // Soft outer RGB border glow
-            rotate(degrees = rgbAngle, pivot = center) {
-                val sweepBrush = Brush.sweepGradient(
-                    colors = FullRgbSpectrum,
-                    center = center
-                )
-                drawRoundRect(
-                    brush = sweepBrush,
-                    topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
-                    size = Size(w - 6.dp.toPx(), h - 6.dp.toPx()),
-                    cornerRadius = CornerRadius(cornerRad, cornerRad),
-                    style = Stroke(width = 6.dp.toPx())
-                )
+            // Smooth 13-stop HSV rainbow sweep that rotates & shifts colors automatically around all 4 edges
+            val dynamicSweepColors = List(13) { i ->
+                Color.hsv((rgbHue + i * 30f) % 360f, 1f, 1f)
             }
+            val dynamicGlowColors = dynamicSweepColors.map { it.copy(alpha = 0.64f) }
 
-            // Crisp inner travelling RGB line around all 4 edges & corners
-            rotate(degrees = -rgbAngle * 1.2f, pivot = center) {
-                val sharpSweep = Brush.sweepGradient(
-                    colors = FullRgbSpectrum,
+            // Outer soft RGB neon border glow around all 4 corners & edges
+            drawRoundRect(
+                brush = Brush.sweepGradient(
+                    colors = dynamicGlowColors,
                     center = center
-                )
-                drawRoundRect(
-                    brush = sharpSweep,
-                    topLeft = Offset(1.5.dp.toPx(), 1.5.dp.toPx()),
-                    size = Size(w - 3.dp.toPx(), h - 3.dp.toPx()),
-                    cornerRadius = CornerRadius(cornerRad, cornerRad),
-                    style = Stroke(width = 2.5.dp.toPx())
-                )
-            }
+                ),
+                topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
+                size = Size(w - 6.dp.toPx(), h - 6.dp.toPx()),
+                cornerRadius = CornerRadius(cornerRad, cornerRad),
+                style = Stroke(width = 9.dp.toPx())
+            )
+
+            // Crisp inner automatic RGB neon line around all 4 corners & edges
+            drawRoundRect(
+                brush = Brush.sweepGradient(
+                    colors = dynamicSweepColors,
+                    center = center
+                ),
+                topLeft = Offset(1.5.dp.toPx(), 1.5.dp.toPx()),
+                size = Size(w - 3.dp.toPx(), h - 3.dp.toPx()),
+                cornerRadius = CornerRadius(cornerRad, cornerRad),
+                style = Stroke(width = 3.5.dp.toPx())
+            )
         }
     }
 }
 
-// ANIMATED RGB DIVIDER LINE
+// AUTOMATIC COLOR-CHANGING RGB DIVIDER LINE
 @Composable
 fun RgbNeonDivider(
     modifier: Modifier = Modifier,
-    height: Dp = 2.dp
+    height: Dp = 2.5.dp
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "rgb_line")
-    val offset by infiniteTransition.animateFloat(
+    val hueShift by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 1000f,
+        targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = LinearEasing),
+            animation = tween(1800, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "rgb_line_shift"
+        label = "rgb_line_hue"
     )
 
     Canvas(
@@ -300,11 +327,14 @@ fun RgbNeonDivider(
             .fillMaxWidth()
             .height(height)
     ) {
+        val lineColors = List(7) { i ->
+            Color.hsv((hueShift + i * 60f) % 360f, 1f, 1f)
+        }
         drawLine(
             brush = Brush.linearGradient(
-                colors = FullRgbSpectrum,
-                start = Offset(offset % size.width - size.width, 0f),
-                end = Offset(offset % size.width + size.width, 0f)
+                colors = lineColors,
+                start = Offset(0f, 0f),
+                end = Offset(size.width, 0f)
             ),
             start = Offset(0f, size.height / 2f),
             end = Offset(size.width, size.height / 2f),
@@ -314,7 +344,7 @@ fun RgbNeonDivider(
     }
 }
 
-// 1. GLASS CARD (with animated RGB border shimmer)
+// 1. GLASS CARD (with automatic RGB color-changing border)
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
@@ -336,30 +366,23 @@ fun GlassCard(
     } else Modifier
 
     val infiniteTransition = rememberInfiniteTransition(label = "card_rgb")
-    val shift by infiniteTransition.animateFloat(
+    val cardHue by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 1200f,
+        targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3500, easing = LinearEasing),
+            animation = tween(2600, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "card_rgb_shift"
+        label = "card_rgb_hue"
     )
 
     val borderModifier = if (useRgbBorder) {
+        val dynamicCardColors = List(6) { i ->
+            Color.hsv((cardHue + i * 72f) % 360f, 0.95f, 1f).copy(alpha = 0.82f)
+        }
         Modifier.border(
-            width = 1.2.dp,
-            brush = Brush.linearGradient(
-                colors = listOf(
-                    NeonCyan.copy(alpha = 0.7f),
-                    NeonPurple.copy(alpha = 0.7f),
-                    HotPink.copy(alpha = 0.7f),
-                    NeonGreen.copy(alpha = 0.7f),
-                    NeonCyan.copy(alpha = 0.7f)
-                ),
-                start = Offset(shift - 600f, 0f),
-                end = Offset(shift, 600f)
-            ),
+            width = 1.4.dp,
+            brush = Brush.linearGradient(colors = dynamicCardColors),
             shape = shape
         )
     } else {
@@ -453,7 +476,7 @@ fun NeonButton(
     }
 }
 
-// 3. VOICE WAVEFORM (Multi-color RGB animated bars)
+// 3. VOICE WAVEFORM (Multi-color RGB animated bars that automatically shift colors)
 @Composable
 fun VoiceWaveform(
     isActive: Boolean,
@@ -472,6 +495,15 @@ fun VoiceWaveform(
             repeatMode = RepeatMode.Restart
         ),
         label = "wave_phase"
+    )
+    val waveHue by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wave_rgb_hue"
     )
 
     Canvas(
@@ -496,8 +528,8 @@ fun VoiceWaveform(
             val topY = (maxBarHeight - barHeight) / 2f
             val bottomY = topY + barHeight
 
-            val topColor = FullRgbSpectrum[i % (FullRgbSpectrum.size - 1)]
-            val bottomColor = FullRgbSpectrum[(i + 3) % (FullRgbSpectrum.size - 1)]
+            val topColor = Color.hsv((waveHue + i * 16f) % 360f, 1f, 1f)
+            val bottomColor = Color.hsv((waveHue + i * 16f + 90f) % 360f, 1f, 1f)
 
             drawLine(
                 brush = Brush.verticalGradient(
@@ -512,7 +544,7 @@ fun VoiceWaveform(
     }
 }
 
-// 4. JARVIS 3D ANIMATED ORB (with RGB rotating rings)
+// 4. JARVIS 3D ANIMATED ORB (with automatic RGB color-shifting core & rings)
 @Composable
 fun JarvisOrb(
     orbSize: Dp,
@@ -524,6 +556,16 @@ fun JarvisOrb(
 ) {
     val haptic = LocalHapticFeedback.current
     val infiniteTransition = rememberInfiniteTransition(label = "jarvis_orb")
+
+    val orbHue by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "orb_auto_rgb_hue"
+    )
 
     val outerRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -566,12 +608,8 @@ fun JarvisOrb(
         label = "orb_pulse"
     )
 
-    val primaryCoreColor = when (visualState) {
-        OrbVisualState.THINKING_PURPLE -> NeonPurple
-        OrbVisualState.WAKE_EXPANDING -> NeonCyan
-        OrbVisualState.SPEAKING_WAVE -> HotPink
-        OrbVisualState.IDLE_LISTENING -> moodColor
-    }
+    val dynamicCoreColor = Color.hsv(orbHue % 360f, 1f, 1f)
+    val dynamicSecondaryColor = Color.hsv((orbHue + 120f) % 360f, 1f, 1f)
 
     Box(
         modifier = modifier
@@ -589,12 +627,12 @@ fun JarvisOrb(
             val center = Offset(size.width / 2f, size.height / 2f)
             val maxR = size.minDimension / 2f
 
-            // Ambient radial glow
+            // Ambient radial glow with automatic RGB color shifting
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        primaryCoreColor.copy(alpha = 0.48f),
-                        NeonPurple.copy(alpha = 0.22f),
+                        dynamicCoreColor.copy(alpha = 0.55f),
+                        dynamicSecondaryColor.copy(alpha = 0.28f),
                         Color.Transparent
                     ),
                     center = center,
@@ -604,11 +642,15 @@ fun JarvisOrb(
                 center = center
             )
 
+            val ringColors = List(13) { i ->
+                Color.hsv((orbHue + i * 30f) % 360f, 1f, 1f)
+            }
+
             // Outer Rotating Full-RGB Ring 1
             rotate(degrees = outerRotation, pivot = center) {
                 drawArc(
                     brush = Brush.sweepGradient(
-                        colors = FullRgbSpectrum,
+                        colors = ringColors,
                         center = center
                     ),
                     startAngle = 0f,
@@ -624,7 +666,7 @@ fun JarvisOrb(
             rotate(degrees = innerRotation, pivot = center) {
                 drawArc(
                     brush = Brush.sweepGradient(
-                        colors = FullRgbSpectrum.reversed(),
+                        colors = ringColors.reversed(),
                         center = center
                     ),
                     startAngle = 35f,
@@ -636,13 +678,13 @@ fun JarvisOrb(
                 )
             }
 
-            // 3D Sphere Core
+            // 3D Sphere Core shifting automatically through RGB colors
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.92f),
-                        primaryCoreColor,
-                        NeonPurple.copy(alpha = 0.85f),
+                        Color.White.copy(alpha = 0.94f),
+                        dynamicCoreColor,
+                        dynamicSecondaryColor.copy(alpha = 0.88f),
                         AmoledBlack
                     ),
                     center = Offset(center.x - maxR * 0.15f, center.y - maxR * 0.15f),
@@ -661,7 +703,7 @@ fun JarvisOrb(
                 modifier = Modifier
                     .size(orbSize * 0.66f)
                     .clip(CircleShape)
-                    .border(2.dp, primaryCoreColor, CircleShape)
+                    .border(2.dp, dynamicCoreColor, CircleShape)
             )
         }
     }

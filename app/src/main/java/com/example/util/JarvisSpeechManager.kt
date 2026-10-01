@@ -2,7 +2,10 @@ package com.example.util
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -10,6 +13,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import com.example.data.model.JarvisMood
 import com.example.data.model.VoiceSettings
+import com.example.service.JarvisVoiceService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,9 +25,13 @@ class JarvisSpeechManager(
     private val onSpeechResult: (String) -> Unit
 ) : TextToSpeech.OnInitListener {
 
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
     private var speechRecognizer: SpeechRecognizer? = null
+
+    private val _isContinuousMicOn = MutableStateFlow(false)
+    val isContinuousMicOn: StateFlow<Boolean> = _isContinuousMicOn.asStateFlow()
 
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening.asStateFlow()
@@ -60,12 +68,14 @@ class JarvisSpeechManager(
                 override fun onDone(utteranceId: String?) {
                     _isSpeaking.value = false
                     _audioAmplitude.value = 0.15f
+                    scheduleRestartIfContinuous(450L)
                 }
 
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) {
                     _isSpeaking.value = false
                     _audioAmplitude.value = 0.15f
+                    scheduleRestartIfContinuous(450L)
                 }
             })
             isTtsReady = true
@@ -78,8 +88,20 @@ class JarvisSpeechManager(
         mood: JarvisMood,
         isChupMode: Boolean = false
     ) {
-        if (isChupMode || cleanText.isBlank()) return
-        if (!isTtsReady) return
+        if (isChupMode || cleanText.isBlank()) {
+            scheduleRestartIfContinuous(500L)
+            return
+        }
+        if (!isTtsReady) {
+            scheduleRestartIfContinuous(500L)
+            return
+        }
+
+        // Pause mic briefly while JARVIS speaks so it doesn't hear its own TTS output
+        mainHandler.post {
+            runCatching { speechRecognizer?.cancel() }
+            _isListening.value = false
+        }
 
         val finalPitch = (voiceSettings.pitch * mood.pitchMultiplier).coerceIn(0.6f, 1.8f)
         val finalSpeed = (if (voiceSettings.whisperMode) voiceSettings.speed * 0.82f else voiceSettings.speed * mood.speedMultiplier)
@@ -100,121 +122,146 @@ class JarvisSpeechManager(
     }
 
     fun startListening() {
+        _isContinuousMicOn.value = true
+        ensureBackgroundVoiceServiceRunning()
         stopSpeaking()
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            _isListening.value = false
-            return
-        }
+        triggerListenCycle()
+    }
+
+    private fun ensureBackgroundVoiceServiceRunning() {
         runCatching {
-            if (speechRecognizer == null) {
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                    setRecognitionListener(object : RecognitionListener {
-                        override fun onReadyForSpeech(params: Bundle?) {
-                            _isListening.value = true
-                            _livePartialTranscript.value = "Sun rahi hun ji… boliye 🎤"
-                        }
+            val serviceIntent = Intent(context, JarvisVoiceService::class.java).apply {
+                putExtra(JarvisVoiceService.EXTRA_STATUS, "🎤 Always-On Mic Active — Boliye Ji 💕")
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        }
+    }
 
-                        override fun onBeginningOfSpeech() {
-                            _isListening.value = true
-                        }
+    private fun scheduleRestartIfContinuous(delayMs: Long) {
+        if (!_isContinuousMicOn.value) return
+        mainHandler.removeCallbacks(restartRunnable)
+        mainHandler.postDelayed(restartRunnable, delayMs)
+    }
 
-                        override fun onRmsChanged(rmsdB: Float) {
-                            val normalized = ((rmsdB + 2f) / 12f).coerceIn(0.15f, 1.0f)
-                            _audioAmplitude.value = normalized
-                        }
+    private val restartRunnable = Runnable {
+        if (_isContinuousMicOn.value && !_isSpeaking.value) {
+            triggerListenCycle()
+        }
+    }
 
-                        override fun onBufferReceived(buffer: ByteArray?) {}
-
-                        override fun onEndOfSpeech() {
-                            _isListening.value = false
-                            _audioAmplitude.value = 0.2f
-                        }
-
-                        override fun onError(error: Int) {
-                            _isListening.value = false
-                            _livePartialTranscript.value = ""
-                            _audioAmplitude.value = 0.15f
-                        }
-
-                        override fun onResults(results: Bundle?) {
-                            _isListening.value = false
-                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            val best = matches?.firstOrNull()?.trim().orEmpty()
-                            _livePartialTranscript.value = ""
-                            if (best.isNotEmpty()) {
-                                onSpeechResult(best)
+    private fun triggerListenCycle() {
+        mainHandler.post {
+            if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                _isListening.value = false
+                return@post
+            }
+            runCatching {
+                if (speechRecognizer == null) {
+                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context.applicationContext).apply {
+                        setRecognitionListener(object : RecognitionListener {
+                            override fun onReadyForSpeech(params: Bundle?) {
+                                _isListening.value = true
+                                _livePartialTranscript.value = "🎤 Always-On Mic: Sun rahi hun ji…"
                             }
-                        }
 
-                        override fun onPartialResults(partialResults: Bundle?) {
-                            val partial = partialResults
-                                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                                ?.firstOrNull()
-                                .orEmpty()
-                            if (partial.isNotBlank()) {
-                                _livePartialTranscript.value = partial
+                            override fun onBeginningOfSpeech() {
+                                _isListening.value = true
                             }
-                        }
 
-                        override fun onEvent(eventType: Int, params: Bundle?) {}
-                    })
+                            override fun onRmsChanged(rmsdB: Float) {
+                                val normalized = ((rmsdB + 2f) / 12f).coerceIn(0.15f, 1.0f)
+                                _audioAmplitude.value = normalized
+                            }
+
+                            override fun onBufferReceived(buffer: ByteArray?) {}
+
+                            override fun onEndOfSpeech() {
+                                _isListening.value = false
+                                _audioAmplitude.value = 0.2f
+                            }
+
+                            override fun onError(error: Int) {
+                                _isListening.value = false
+                                _livePartialTranscript.value = ""
+                                _audioAmplitude.value = 0.15f
+                                if (_isContinuousMicOn.value && !_isSpeaking.value) {
+                                    scheduleRestartIfContinuous(650L)
+                                }
+                            }
+
+                            override fun onResults(results: Bundle?) {
+                                _isListening.value = false
+                                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                                val best = matches?.firstOrNull()?.trim().orEmpty()
+                                _livePartialTranscript.value = ""
+                                if (best.isNotEmpty()) {
+                                    onSpeechResult(best)
+                                } else if (_isContinuousMicOn.value) {
+                                    scheduleRestartIfContinuous(500L)
+                                }
+                            }
+
+                            override fun onPartialResults(partialResults: Bundle?) {
+                                val partial = partialResults
+                                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                                    ?.firstOrNull()
+                                    .orEmpty()
+                                if (partial.isNotBlank()) {
+                                    _livePartialTranscript.value = partial
+                                }
+                            }
+
+                            override fun onEvent(eventType: Int, params: Bundle?) {}
+                        })
+                    }
+                }
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(
+                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                    )
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+                }
+                speechRecognizer?.startListening(intent)
+                _isListening.value = true
+            }.onFailure {
+                _isListening.value = false
+                if (_isContinuousMicOn.value) {
+                    scheduleRestartIfContinuous(1200L)
                 }
             }
-
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                )
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            }
-            speechRecognizer?.startListening(intent)
-            _isListening.value = true
-        }.onFailure {
-            _isListening.value = false
         }
     }
 
     fun stopListening() {
-        runCatching {
-            speechRecognizer?.stopListening()
+        _isContinuousMicOn.value = false
+        mainHandler.removeCallbacks(restartRunnable)
+        mainHandler.post {
+            runCatching {
+                speechRecognizer?.stopListening()
+                speechRecognizer?.cancel()
+            }
+            _isListening.value = false
+            _livePartialTranscript.value = ""
         }
-        _isListening.value = false
-        _livePartialTranscript.value = ""
     }
 
     fun release() {
+        _isContinuousMicOn.value = false
+        mainHandler.removeCallbacks(restartRunnable)
         runCatching {
             speechRecognizer?.destroy()
             tts?.stop()
             tts?.shutdown()
-        }
-    }
-
-    companion object {
-        fun buildSsmlPreview(settings: VoiceSettings): String {
-            val ratePct = (settings.speed * 100).toInt()
-            val pitchSt = String.format(Locale.US, "+%.1fst", (settings.pitch - 1.0f) * 10f)
-            return """
-<speak>
-  <prosody pitch="$pitchSt" rate="$ratePct%">
-    Ji… <break time="400ms"/>
-    <prosody pitch="+2st" rate="85%">
-      JARVIS sun rahi hun…
-    </prosody>
-    <break time="500ms"/>
-    <prosody pitch="+4st" rate="92%">
-      Abhi karti hun ji…
-    </prosody>
-    <break time="300ms"/>
-    <prosody pitch="+2st" rate="88%">
-      Ho gaya ji 💕
-    </prosody>
-  </prosody>
-</speak>
-            """.trimIndent()
         }
     }
 }

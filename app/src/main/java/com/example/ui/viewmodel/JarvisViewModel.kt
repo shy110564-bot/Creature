@@ -25,6 +25,7 @@ import com.example.data.repository.JarvisRepository
 import com.example.service.JarvisVoiceService
 import com.example.util.JarvisSpeechManager
 import com.example.util.PhoneControlExecutor
+import com.example.util.ScreenShareManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -56,6 +57,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     private val database = JarvisDatabase.getDatabase(application)
     private val repository = JarvisRepository(application, database.jarvisDao())
     val phoneControl = PhoneControlExecutor(application)
+    val screenShareManager = ScreenShareManager(application)
 
     val speechManager = JarvisSpeechManager(application) { recognizedSpeech ->
         handleUserMessage(recognizedSpeech, fromVoice = true)
@@ -131,6 +133,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.seedInitialDataIfEmpty()
             refreshTelemetry()
+        }
+        viewModelScope.launch {
+            speechManager.isContinuousMicOn.collect { continuous ->
+                if (continuous) {
+                    _isForegroundServiceRunning.value = true
+                }
+            }
         }
         viewModelScope.launch {
             speechManager.isListening.collect { listening ->
@@ -357,11 +366,50 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         if (bitmap != null) {
             _screenMockState.update {
                 it.copy(
-                    currentAppTitle = "Uploaded Screenshot (Live Vision OCR)",
-                    headlineText = "Custom User Screen Loaded (${bitmap.width}x${bitmap.height})"
+                    currentAppTitle = "Live Shared Phone Screen",
+                    headlineText = "Live Screen Active (${bitmap.width}x${bitmap.height})"
                 )
             }
         }
+    }
+
+    fun startLiveScreenShare(resultCode: Int, data: Intent) {
+        _isForegroundServiceRunning.value = true
+        _screenMockState.update { it.copy(isSharingLive = true) }
+        screenShareManager.startScreenShare(resultCode, data) { frameBmp ->
+            setCapturedScreenBitmap(frameBmp)
+        }
+        val msg = "Ji… aapka Live Screen Share chalu ho gaya hai 🖥️ Ab main aapki screen lagatar dekh rahi hun ✅"
+        viewModelScope.launch {
+            repository.insertMessage(
+                ChatMessageEntity(
+                    isUser = false,
+                    text = msg,
+                    spokenCleanText = JarvisAiEngine.stripVocalCuesForTts(msg),
+                    moodId = selectedMood.value.id,
+                    detectedEmotion = "🖥️ Live Screen Share",
+                    actionBadge = "🔴 Live Screen Share ON"
+                )
+            )
+            speechManager.speak(
+                cleanText = JarvisAiEngine.stripVocalCuesForTts(msg),
+                voiceSettings = voiceSettings.value,
+                mood = selectedMood.value,
+                isChupMode = wakeState.value == WakeState.CHUP_MODE
+            )
+        }
+    }
+
+    fun stopLiveScreenShare() {
+        screenShareManager.stopScreenShare()
+        _screenMockState.update { it.copy(isSharingLive = false) }
+        val msg = "Ji… Live Screen Share band kar diya hai ✅"
+        speechManager.speak(
+            cleanText = JarvisAiEngine.stripVocalCuesForTts(msg),
+            voiceSettings = voiceSettings.value,
+            mood = selectedMood.value,
+            isChupMode = wakeState.value == WakeState.CHUP_MODE
+        )
     }
 
     fun performScreenShareControl(actionType: String, payload: String = "") {
@@ -603,6 +651,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
+        screenShareManager.stopScreenShare()
         speechManager.release()
     }
 }

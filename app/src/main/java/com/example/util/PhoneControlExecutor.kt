@@ -20,6 +20,7 @@ import android.provider.CallLog
 import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.provider.Settings
+import android.telephony.SmsManager
 import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import com.example.data.model.HealthFitnessState
@@ -578,15 +579,35 @@ class PhoneControlExecutor(private val context: Context) {
 
             // 2. MESSAGING
             is PhoneActionCommand.SendWhatsApp -> {
+                val resolved = resolveContactNumber(command.contact)
+                val digitsOnly = resolved.filter { it.isDigit() }
                 val encoded = Uri.encode(command.message)
-                openUrl("https://wa.me/?text=$encoded")
+                val url = if (digitsOnly.length >= 10) {
+                    val formattedPhone = if (digitsOnly.length == 10) "91$digitsOnly" else digitsOnly
+                    "https://wa.me/$formattedPhone?text=$encoded"
+                } else {
+                    "https://wa.me/?text=$encoded"
+                }
+                openUrl(url)
             }
             is PhoneActionCommand.SendSms -> {
                 val resolved = resolveContactNumber(command.recipient)
-                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(resolved)}")).apply {
-                    putExtra("sms_body", command.body)
+                val digitsOnly = resolved.filter { it.isDigit() || it == '+' }
+                var sentDirectly = false
+                if (hasPerm(Manifest.permission.SEND_SMS) && digitsOnly.length >= 10) {
+                    sentDirectly = runCatching {
+                        @Suppress("DEPRECATION")
+                        val smsManager = SmsManager.getDefault()
+                        smsManager.sendTextMessage(digitsOnly, null, command.body, null, null)
+                        true
+                    }.getOrDefault(false)
                 }
-                startSafeIntent(intent)
+                if (!sentDirectly) {
+                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(resolved)}")).apply {
+                        putExtra("sms_body", command.body)
+                    }
+                    startSafeIntent(intent)
+                }
             }
             is PhoneActionCommand.OpenMessagingApp -> {
                 if (!tryLaunchInstalledAppByName(command.platform)) {
@@ -844,7 +865,8 @@ class PhoneControlExecutor(private val context: Context) {
                 val a11y = JarvisAccessibilityService.instance
                 if (a11y != null) {
                     when (command.actionType) {
-                        "CLICK" -> a11y.performTap(540f, 1200f)
+                        "CLICK" -> a11y.clickNodeByText(command.value)
+                        "TYPE" -> a11y.typeTextIntoFocusedNode(command.value)
                         "SCROLL" -> if (command.value == "UP") {
                             a11y.performSwipe(540f, 600f, 540f, 1500f)
                         } else {

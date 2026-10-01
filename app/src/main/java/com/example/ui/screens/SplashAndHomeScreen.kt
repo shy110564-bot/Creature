@@ -1,14 +1,19 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -47,6 +52,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.ScreenShare
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material.icons.filled.StopScreenShare
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -109,7 +115,7 @@ fun SplashScreen(
     }
 }
 
-// SINGLE ALL-IN-ONE SIMPLE CHAT + VOICE + SCREEN CONTROL SCREEN
+// SINGLE ALL-IN-ONE SIMPLE CHAT + ALWAYS-ON BACKGROUND VOICE + LIVE SCREEN SHARE SCREEN
 @Composable
 fun HomeScreen(
     selectedMood: JarvisMood,
@@ -117,7 +123,9 @@ fun HomeScreen(
     orbState: OrbVisualState,
     showHologramAvatar: Boolean,
     isListening: Boolean,
+    isContinuousMicOn: Boolean = false,
     isSpeaking: Boolean,
+    isScreenSharingLive: Boolean = false,
     audioAmplitude: Float,
     liveTranscript: String,
     recentMessages: List<ChatMessageEntity>,
@@ -127,6 +135,8 @@ fun HomeScreen(
     onToggleAvatar: () -> Unit = {},
     onStartVoiceListen: () -> Unit,
     onStopVoiceListen: () -> Unit = {},
+    onStartLiveScreenShare: (Int, Intent) -> Unit = { _, _ -> },
+    onStopLiveScreenShare: () -> Unit = {},
     onQuickPrompt: (String) -> Unit,
     onSpeakText: (String) -> Unit = {},
     onClearChat: () -> Unit = {},
@@ -151,6 +161,17 @@ fun HomeScreen(
         }
     }
 
+    // Real Android System Screen Share Launcher (MediaProjectionManager)
+    val screenShareLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            onStartLiveScreenShare(result.resultCode, data)
+            showScreenPanel = true
+        }
+    }
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -171,6 +192,16 @@ fun HomeScreen(
         }
     }
 
+    fun requestSystemScreenShare() {
+        runCatching {
+            val mpm = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+            val captureIntent = mpm?.createScreenCaptureIntent()
+            if (captureIntent != null) {
+                screenShareLauncher.launch(captureIntent)
+            }
+        }
+    }
+
     LaunchedEffect(recentMessages.size) {
         if (recentMessages.isNotEmpty()) {
             listState.animateScrollToItem(recentMessages.lastIndex)
@@ -180,13 +211,25 @@ fun HomeScreen(
     val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
     val micPulse by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = if (isListening) 1.15f else 1.04f,
+        targetValue = if (isListening || isContinuousMicOn) 1.15f else 1.04f,
         animationSpec = infiniteRepeatable(
             animation = tween(700),
             repeatMode = RepeatMode.Reverse
         ),
         label = "mic_scale"
     )
+    val autoRgbHue by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "home_auto_rgb_hue"
+    )
+    val rgbColor1 = Color.hsv(autoRgbHue % 360f, 1f, 1f)
+    val rgbColor2 = Color.hsv((autoRgbHue + 120f) % 360f, 1f, 1f)
+    val rgbColor3 = Color.hsv((autoRgbHue + 240f) % 360f, 1f, 1f)
 
     Column(
         modifier = Modifier
@@ -196,7 +239,7 @@ fun HomeScreen(
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag("home_screen")
     ) {
-        // 1. TOP BAR: JARVIS ORB + STATUS ON LEFT, SCREEN SHARE & SETTINGS/PERMISSIONS IN TOP-RIGHT CORNER
+        // 1. TOP BAR: JARVIS ORB + STATUS ON LEFT, LIVE SCREEN SHARE & SETTINGS IN TOP-RIGHT CORNER
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -207,22 +250,26 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 JarvisOrb(
-                    orbSize = 54.dp,
+                    orbSize = 52.dp,
                     visualState = orbState,
                     moodColor = selectedMood.accentColor,
                     showHologramAvatar = showHologramAvatar,
                     onClick = {
-                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        if (isContinuousMicOn) {
+                            onStopVoiceListen()
+                        } else {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
                     }
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(9.dp)
                                 .clip(CircleShape)
-                                .background(if (isListening || wakeState == WakeState.ACTIVE) NeonGreen else HotPink)
+                                .background(rgbColor1)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
@@ -230,35 +277,65 @@ fun HomeScreen(
                             style = TextStyle(
                                 fontFamily = SoraFontFamily,
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 20.sp,
-                                brush = JarvisGradients.PrimaryNeon
+                                fontSize = 19.sp,
+                                brush = Brush.linearGradient(listOf(rgbColor1, rgbColor2, rgbColor3))
                             )
                         )
                     }
                     Text(
                         text = when {
-                            isListening -> "🎤 Sun rahi hun ji… boliye"
+                            isContinuousMicOn -> "🎤 Always-On Background Mic ON"
+                            isScreenSharingLive -> "🔴 Live Screen Share ON"
                             isSpeaking -> "🔊 Bol rahi hun ji… 💕"
-                            else -> "⚡ All Phone & Screen Control Ready"
+                            else -> "⚡ Tap 🎤 Once for Continuous Talk"
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = if (isContinuousMicOn) NeonGreen else TextSecondary
                     )
                 }
             }
 
-            // Top-Right Corner Controls: Screen Share Toggle, Clear Chat, and Settings (Permissions + Gemini API Key)
+            // Top-Right Corner: Live Screen Share Button, Clear Chat, and Settings
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                NeonIconButton(
-                    icon = Icons.Default.ScreenShare,
-                    contentDescription = "Screen Share & Control",
-                    onClick = { showScreenPanel = !showScreenPanel },
-                    tint = if (showScreenPanel || screenState.isSharingLive) NeonGreen else NeonCyan,
-                    testTag = "top_screen_share_btn"
-                )
+                // Live Screen Share Pill Button
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            if (isScreenSharingLive) NeonRed.copy(alpha = 0.25f) else SurfaceAlt
+                        )
+                        .border(
+                            1.5.dp,
+                            if (isScreenSharingLive) NeonRed else NeonCyan,
+                            RoundedCornerShape(999.dp)
+                        )
+                        .clickable {
+                            showScreenPanel = true
+                            if (!isScreenSharingLive) {
+                                requestSystemScreenShare()
+                            }
+                        }
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                        .testTag("top_screen_share_btn"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isScreenSharingLive) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
+                        contentDescription = "Live Screen Share",
+                        tint = if (isScreenSharingLive) NeonRed else NeonCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isScreenSharingLive) "LIVE 🔴" else "Screen",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isScreenSharingLive) NeonRed else NeonCyan,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
                 NeonIconButton(
                     icon = Icons.Default.DeleteSweep,
@@ -275,7 +352,7 @@ fun HomeScreen(
                         .background(SurfaceAlt)
                         .border(1.5.dp, NeonGreen, RoundedCornerShape(999.dp))
                         .clickable { onOpenSettings() }
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
                         .testTag("top_settings_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -283,7 +360,7 @@ fun HomeScreen(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Settings, Permissions & API Key",
                         tint = NeonGreen,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
@@ -299,13 +376,13 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(6.dp))
         RgbNeonDivider()
 
-        // 2. INLINE SCREEN SHARE & CONTROL BAR (Toggled via Top Screen icon)
-        AnimatedVisibility(visible = showScreenPanel) {
+        // 2. LIVE SCREEN SHARE & CONTROL PANEL
+        AnimatedVisibility(visible = showScreenPanel || isScreenSharingLive) {
             GlassCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
-                borderColor = NeonCyan,
+                borderColor = if (isScreenSharingLive) NeonRed else NeonCyan,
                 contentPadding = PaddingValues(10.dp)
             ) {
                 Row(
@@ -314,15 +391,17 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "🖥️ Screen Share & Control (${if (screenState.isSharingLive) "LIVE 🔴" else "Paused"})",
+                        text = if (isScreenSharingLive) "🔴 JARVIS Aapki Live Screen Dekh Rahi Hai"
+                        else "🖥️ Screen Share (JARVIS Ko Apni Screen Dikhayein)",
                         style = MaterialTheme.typography.labelLarge,
-                        color = NeonCyan,
+                        color = if (isScreenSharingLive) NeonGreen else NeonCyan,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = " screenshot load / control",
+                        text = if (isScreenSharingLive) "Hide ▲" else "Close ✕",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = TextSecondary,
+                        modifier = Modifier.clickable { showScreenPanel = false }
                     )
                 }
 
@@ -330,12 +409,13 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     Image(
                         bitmap = capturedBitmap.asImageBitmap(),
-                        contentDescription = "Captured Screen",
+                        contentDescription = "Live Shared Screen",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(110.dp)
+                            .height(100.dp)
                             .clip(RoundedCornerShape(10.dp))
+                            .border(1.dp, NeonCyan, RoundedCornerShape(10.dp))
                     )
                 }
 
@@ -346,7 +426,23 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     NeonButton(
-                        text = "📸 Screen",
+                        text = if (isScreenSharingLive) "⏹ Stop Share" else "🖥️ Start Screen Share",
+                        icon = if (isScreenSharingLive) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
+                        onClick = {
+                            if (isScreenSharingLive) {
+                                onStopLiveScreenShare()
+                            } else {
+                                requestSystemScreenShare()
+                            }
+                        },
+                        accentColor = if (isScreenSharingLive) NeonRed else NeonGreen,
+                        secondaryColor = NeonCyan,
+                        modifier = Modifier.weight(1.4f),
+                        testTag = "start_live_screen_share_btn"
+                    )
+
+                    NeonButton(
+                        text = "📸 Photo",
                         icon = Icons.Default.AddPhotoAlternate,
                         onClick = {
                             photoPickerLauncher.launch(
@@ -356,6 +452,21 @@ fun HomeScreen(
                         accentColor = NeonCyan,
                         modifier = Modifier.weight(1f),
                         testTag = "pick_screenshot_btn"
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    NeonButton(
+                        text = "📖 Screen Padho",
+                        onClick = { onPerformScreenAction("READ_OCR", "") },
+                        accentColor = HotPink,
+                        modifier = Modifier.weight(1f),
+                        testTag = "vision_ocr_btn"
                     )
                     NeonButton(
                         text = "👆 Click",
@@ -370,13 +481,6 @@ fun HomeScreen(
                         accentColor = NeonPurple,
                         modifier = Modifier.weight(1f),
                         testTag = "vision_scroll_btn"
-                    )
-                    NeonButton(
-                        text = "📖 Padho",
-                        onClick = { onPerformScreenAction("READ_OCR", "") },
-                        accentColor = HotPink,
-                        modifier = Modifier.weight(1f),
-                        testTag = "vision_ocr_btn"
                     )
                 }
             }
@@ -427,12 +531,13 @@ fun HomeScreen(
 
         // 4. QUICK ONE-TAP COMMAND CHIPS
         val quickChips = listOf(
+            "⏰ Time batao",
             "📞 Mummy ko call karo",
-            "💬 WhatsApp kholo",
-            "🎵 Arijit Singh gaane lagao",
+            "💬 Rahul ko message karo main aa raha hun",
             "🔦 Torch on karo",
+            "📅 Calendar kholo",
             "🖥️ Screen padho",
-            "🌐 Google pe news search karo",
+            "🎵 Arijit Singh gaane lagao",
             "📶 WiFi on karo"
         )
         Row(
@@ -443,11 +548,12 @@ fun HomeScreen(
         ) {
             quickChips.forEachIndexed { idx, chip ->
                 val cleanCmd = chip.substringAfter(" ")
+                val chipColor = Color.hsv((autoRgbHue + idx * 45f) % 360f, 0.95f, 1f)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .background(SurfaceAlt)
-                        .border(1.dp, GlassBorderCyan, RoundedCornerShape(999.dp))
+                        .border(1.2.dp, chipColor.copy(alpha = 0.78f), RoundedCornerShape(999.dp))
                         .clickable { onQuickPrompt(cleanCmd) }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                         .testTag("chat_quick_chip_$idx")
@@ -480,23 +586,25 @@ fun HomeScreen(
             }
         }
 
-        // 6. BOTTOM CHAT + MIC BAR
+        // 6. BOTTOM CHAT + ALWAYS-ON MIC BAR
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            borderColor = if (isListening) NeonCyan else GlassBorderPink,
+            borderColor = if (isContinuousMicOn || isListening) NeonGreen else GlassBorderPink,
             contentPadding = PaddingValues(10.dp)
         ) {
-            if (liveTranscript.isNotBlank() || isListening) {
+            if (liveTranscript.isNotBlank() || isContinuousMicOn || isListening) {
                 Text(
-                    text = if (liveTranscript.isNotBlank()) liveTranscript else "Sun rahi hun ji… boliye 🎤",
+                    text = if (liveTranscript.isNotBlank()) liveTranscript
+                    else "🎤 Always-On Mic Chalu Hai (Background Mein Bhi Boliye)…",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = NeonCyan,
+                    color = NeonGreen,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
 
             VoiceWaveform(
-                isActive = isListening || isSpeaking,
+                isActive = isListening || isSpeaking || isContinuousMicOn,
                 amplitude = audioAmplitude,
                 accentColor = NeonCyan,
                 secondaryColor = HotPink,
@@ -515,7 +623,7 @@ fun HomeScreen(
                     onValueChange = { inputText = it },
                     placeholder = {
                         Text(
-                            text = "Kuch bhi bolo ya likho (Call, App, Search, Baat)…",
+                            text = "Kuch bhi bolo ya likho (Call, Message, Time, Torch)…",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary
                         )
@@ -548,20 +656,20 @@ fun HomeScreen(
                     testTag = "send_message_button"
                 )
 
+                // One-Tap Continuous Background Mic Toggle Button (with automatic RGB color shifting)
                 Box(
                     modifier = Modifier
-                        .size(56.dp)
+                        .size(58.dp)
                         .scale(micPulse)
                         .clip(CircleShape)
                         .background(
                             Brush.linearGradient(
-                                if (isListening) listOf(NeonRed, HotPink)
-                                else listOf(NeonCyan, NeonPurple, HotPink)
+                                listOf(rgbColor1, rgbColor2, rgbColor3)
                             )
                         )
-                        .border(2.dp, Color.White.copy(alpha = 0.75f), CircleShape)
+                        .border(2.dp, Color.White.copy(alpha = 0.90f), CircleShape)
                         .clickable {
-                            if (isListening) {
+                            if (isContinuousMicOn || isListening) {
                                 onStopVoiceListen()
                             } else {
                                 micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -571,10 +679,10 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isListening) Icons.Default.StopCircle else Icons.Default.Mic,
-                        contentDescription = "Voice Mic Button",
+                        imageVector = if (isContinuousMicOn || isListening) Icons.Default.StopCircle else Icons.Default.Mic,
+                        contentDescription = "Always-On Voice Mic Button",
                         tint = Color.White,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }

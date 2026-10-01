@@ -58,7 +58,9 @@ fun JarvisRootApp(
     val capturedBitmap by viewModel.capturedScreenBitmap.collectAsStateWithLifecycle()
     val overlayNotification by viewModel.overlayNotification.collectAsStateWithLifecycle()
     val isServiceRunning by viewModel.isForegroundServiceRunning.collectAsStateWithLifecycle()
+    val isScreenSharingLive by viewModel.screenShareManager.isScreenSharing.collectAsStateWithLifecycle()
 
+    val isContinuousMicOn by viewModel.speechManager.isContinuousMicOn.collectAsStateWithLifecycle()
     val isListening by viewModel.speechManager.isListening.collectAsStateWithLifecycle()
     val isSpeaking by viewModel.speechManager.isSpeaking.collectAsStateWithLifecycle()
     val audioAmplitude by viewModel.speechManager.audioAmplitude.collectAsStateWithLifecycle()
@@ -103,7 +105,9 @@ fun JarvisRootApp(
                             orbState = orbState,
                             showHologramAvatar = showHologramAvatar,
                             isListening = isListening,
+                            isContinuousMicOn = isContinuousMicOn,
                             isSpeaking = isSpeaking,
+                            isScreenSharingLive = isScreenSharingLive,
                             audioAmplitude = audioAmplitude,
                             liveTranscript = liveTranscript,
                             recentMessages = messages,
@@ -113,6 +117,10 @@ fun JarvisRootApp(
                             onToggleAvatar = { viewModel.toggleHologramAvatar() },
                             onStartVoiceListen = { viewModel.speechManager.startListening() },
                             onStopVoiceListen = { viewModel.speechManager.stopListening() },
+                            onStartLiveScreenShare = { resultCode, data ->
+                                viewModel.startLiveScreenShare(resultCode, data)
+                            },
+                            onStopLiveScreenShare = { viewModel.stopLiveScreenShare() },
                             onQuickPrompt = { prompt -> viewModel.handleUserMessage(prompt) },
                             onSpeakText = { cleanText ->
                                 viewModel.speechManager.speak(
