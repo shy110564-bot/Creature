@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">JARVIS</string>
+    <string name="developer_credit">Crafted by AK EXPLOITS</string>
+    <string name="jarvis_greeting_status">Ji… boliye, sun rahi hun 💕</string>
+    <string name="jarvis_sleeping_status">So rahi hun… \'JARVIS\' bolna 💤</string>
+    <string name="jarvis_thinking_status">Hmm… soch rahi hun ji…</string>
+    <string name="jarvis_speaking_status">Bol rahi hun ji…</string>
+    <string name="telegram_url">https://t.me/+R9EwUE03GRswZDM9</string>
+    <string name="youtube_search_url">https://www.youtube.com/results?search_query=AK+EXPLOITS</string>
+</resources>
