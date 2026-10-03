@@ -61,6 +61,7 @@ fun JarvisRootApp(
     val isServiceRunning by viewModel.isForegroundServiceRunning.collectAsStateWithLifecycle()
     val isScreenSharingLive by viewModel.screenShareManager.isScreenSharing.collectAsStateWithLifecycle()
     val isBackgroundRgbActive by viewModel.isBackgroundRgbActive.collectAsStateWithLifecycle()
+    val isAutonomousMindEnabled by viewModel.isAutonomousMindEnabled.collectAsStateWithLifecycle()
     val codingMessages by viewModel.codingMessages.collectAsStateWithLifecycle()
     val isGeneratingCode by viewModel.isGeneratingCode.collectAsStateWithLifecycle()
 
@@ -155,6 +156,8 @@ fun JarvisRootApp(
                             onPerformScreenAction = { action, payload ->
                                 viewModel.performScreenShareControl(action, payload)
                             },
+                            isAutonomousMindEnabled = isAutonomousMindEnabled,
+                            onToggleAutonomousMind = { viewModel.toggleAutonomousMind() },
                             onOpenCodingStudio = { viewModel.navigateTo(JarvisScreen.CODING_STUDIO) },
                             onOpenSettings = { viewModel.navigateTo(JarvisScreen.SETTINGS) }
                         )

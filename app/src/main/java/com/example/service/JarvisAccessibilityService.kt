@@ -187,7 +187,7 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
 
         if (roots.isNotEmpty()) {
-            // 1. Support pipe-separated candidate targets (e.g. "View channel|चैनल देखें|AK EXPLOITS|@")
+            // 1. Support pipe-separated candidate targets
             if (expandedQuery.contains("|")) {
                 val candidates = expandedQuery.split("|").map { it.trim() }.filter { it.isNotEmpty() }
                 for (cand in candidates) {
@@ -300,7 +300,7 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
         }
 
-        performTap(cx, h * 0.38f)
+        performTap(cx, h * 0.40f)
         return true
     }
 
@@ -376,23 +376,35 @@ class JarvisAccessibilityService : AccessibilityService() {
         val rect = Rect()
         node.getBoundsInScreen(rect)
 
-        // 1. If the exact matched node is directly clickable, click it AND tap its exact coordinates
+        // 1. If the node has valid screen coordinates, ALWAYS dispatch a real physical touch tap
+        // to the node's center! This works on Litho (YouTube), Jetpack Compose, Webviews, and all native views!
+        if (!rect.isEmpty && rect.centerX() > 0 && rect.centerY() > 0) {
+            performTap(rect.exactCenterX(), rect.exactCenterY())
+            if (node.isClickable) {
+                runCatching { node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+            }
+            return true
+        }
+
+        // 2. If node is clickable without valid bounds
         if (node.isClickable) {
             val clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             if (clicked) return true
         }
 
-        // 2. If the node has valid screen coordinates (e.g., Litho sub-elements like "View channel" in YouTube),
-        // dispatch a physical tap directly to the node's center so we don't accidentally click a parent card's center!
-        if (!rect.isEmpty && rect.centerX() > 0 && rect.centerY() > 0) {
-            performTap(rect.exactCenterX(), rect.exactCenterY())
-            return true
-        }
-
-        // 3. Fallback: walk up parent hierarchy if node had no screen bounds
+        // 3. Fallback: walk up parent hierarchy
         var current: AccessibilityNodeInfo? = node.parent
         var depth = 0
         while (current != null && depth < 6) {
+            val pRect = Rect()
+            current.getBoundsInScreen(pRect)
+            if (!pRect.isEmpty && pRect.centerX() > 0 && pRect.centerY() > 0) {
+                performTap(pRect.exactCenterX(), pRect.exactCenterY())
+                if (current.isClickable) {
+                    runCatching { current.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+                }
+                return true
+            }
             if (current.isClickable) {
                 if (current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                     return true
@@ -505,24 +517,21 @@ class JarvisAccessibilityService : AccessibilityService() {
 
         when (direction.uppercase()) {
             "UP" -> {
-                val scrolledBackward = mainScrollNode?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) ?: false
-                if (!scrolledBackward) {
-                    // If already at the very top of a feed when user says "scroll up" (meaning swipe finger up),
-                    // or if custom view doesn't support A11y scroll action, perform physical swipe
-                    val scrolledForward = mainScrollNode?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ?: false
-                    if (!scrolledForward) {
-                        performSwipe(cx, topY, cx, bottomY)
-                    }
-                }
+                // To scroll UP (move viewport up to see content above), swipe down
+                performSwipe(cx, topY, cx, bottomY)
+                mainScrollNode?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
             }
             "DOWN" -> {
-                val scrolledForward = mainScrollNode?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ?: false
-                if (!scrolledForward) {
-                    performSwipe(cx, bottomY, cx, topY)
-                }
+                // To scroll DOWN (move viewport down to see content below), swipe up
+                performSwipe(cx, bottomY, cx, topY)
+                mainScrollNode?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
             }
-            "LEFT" -> performSwipe(rightX, cy, leftX, cy)
-            "RIGHT" -> performSwipe(leftX, cy, rightX, cy)
+            "LEFT" -> {
+                performSwipe(rightX, cy, leftX, cy)
+            }
+            "RIGHT" -> {
+                performSwipe(leftX, cy, rightX, cy)
+            }
         }
     }
 

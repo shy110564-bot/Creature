@@ -12,6 +12,8 @@ import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.os.StatFs
 import android.provider.AlarmClock
@@ -22,6 +24,7 @@ import android.provider.MediaStore
 import android.provider.Settings
 import android.telephony.SmsManager
 import android.view.KeyEvent
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.example.data.model.HealthFitnessState
 import com.example.data.model.SmartHomeState
@@ -45,6 +48,7 @@ data class JarvisPermissionItem(
 
 class PhoneControlExecutor(private val context: Context) {
 
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var torchEnabled = false
     private var simulatedBrightnessPct = 75
     private var ringerLabel = "Ring Mode 🔔"
@@ -888,6 +892,9 @@ class PhoneControlExecutor(private val context: Context) {
                         if (a11y != null) {
                             a11y.clickNodeByText(command.value)
                         } else {
+                            mainHandler.post {
+                                Toast.makeText(context, "JARVIS ko Accessibility Settings mein ON kijiye", Toast.LENGTH_LONG).show()
+                            }
                             startSafeIntent(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         }
                     }
@@ -895,6 +902,9 @@ class PhoneControlExecutor(private val context: Context) {
                         if (a11y != null) {
                             a11y.typeTextIntoFocusedNode(command.value)
                         } else {
+                            mainHandler.post {
+                                Toast.makeText(context, "JARVIS ko Accessibility Settings mein ON kijiye", Toast.LENGTH_LONG).show()
+                            }
                             startSafeIntent(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         }
                     }
@@ -902,6 +912,9 @@ class PhoneControlExecutor(private val context: Context) {
                         if (a11y != null) {
                             a11y.performDirectionalScroll(command.value)
                         } else {
+                            mainHandler.post {
+                                Toast.makeText(context, "JARVIS ko Accessibility Settings mein ON kijiye", Toast.LENGTH_LONG).show()
+                            }
                             startSafeIntent(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         }
                     }
@@ -915,6 +928,9 @@ class PhoneControlExecutor(private val context: Context) {
                                 }
                                 startSafeIntent(homeIntent)
                             } else if (a11y == null) {
+                                mainHandler.post {
+                                    Toast.makeText(context, "JARVIS ko Accessibility Settings mein ON kijiye", Toast.LENGTH_LONG).show()
+                                }
                                 startSafeIntent(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                             }
                         }

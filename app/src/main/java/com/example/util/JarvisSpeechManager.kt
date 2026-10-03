@@ -85,6 +85,20 @@ class JarvisSpeechManager(
             if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
                 tts?.setLanguage(indianEnglishLocale)
             }
+            // Pick a smooth natural female Indian voice if available in system voices
+            runCatching {
+                val voices = tts?.voices
+                val bestFemaleVoice = voices?.firstOrNull { v ->
+                    (v.locale.language == "hi" || (v.locale.language == "en" && v.locale.country.equals("IN", ignoreCase = true))) &&
+                    (v.name.contains("female", ignoreCase = true) || v.name.contains("hie", ignoreCase = true) || v.name.contains("c-local", ignoreCase = true))
+                } ?: voices?.firstOrNull { v ->
+                    v.locale.language == "hi" || (v.locale.language == "en" && v.locale.country.equals("IN", ignoreCase = true))
+                }
+                if (bestFemaleVoice != null) {
+                    tts?.voice = bestFemaleVoice
+                }
+            }
+
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     _isSpeaking.value = true
@@ -152,13 +166,28 @@ class JarvisSpeechManager(
         return (matchCount.toFloat() / recWords.size.toFloat()) >= 0.75f
     }
 
+    private fun cleanTextForNaturalSpeech(text: String): String {
+        return text
+            .replace(Regex("\\[CMD:[^\\]]*\\]"), "")
+            .replace(Regex("\\(pause\\)|\\(breath\\)|\\(smile\\)|\\(soft\\)|\\(excited\\)|\\(giggle\\)|\\(sigh\\)|\\(shy\\)|\\(proud\\)|\\(loving\\)|\\(teasing\\)|\\(angry\\)"), "")
+            .replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1")
+            .replace(Regex("\\*([^*]+)\\*"), "$1")
+            .replace(Regex("`([^`]+)`"), "$1")
+            .replace(Regex("(?i)\\b(https?://\\S+|www\\.\\S+)\\b"), "")
+            .replace(Regex("[✅⚡🔴🧠💻👆⬆️⬇️🔙🏠📑📸📖🎬▶️👁️⏰📞💬🔦📅🎵💕🔒🛡️⚠️👌✨🎉🔥]"), "")
+            .replace(Regex("[\\p{So}\\p{Cn}]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
     fun speak(
         cleanText: String,
         voiceSettings: VoiceSettings,
         mood: JarvisMood,
         isChupMode: Boolean = false
     ) {
-        if (isChupMode || cleanText.isBlank()) {
+        val sanitized = cleanTextForNaturalSpeech(cleanText)
+        if (isChupMode || sanitized.isBlank()) {
             scheduleRestartIfContinuous(200L)
             return
         }
@@ -167,18 +196,18 @@ class JarvisSpeechManager(
             return
         }
 
-        currentTtsCleanText = cleanText
+        currentTtsCleanText = sanitized
 
         // Rule #3 & #8: Voice speed 85-88% for clear, natural girl pronunciation, pitch medium-high
-        val finalPitch = (voiceSettings.pitch * mood.pitchMultiplier).coerceIn(0.95f, 1.22f)
-        val finalSpeed = (voiceSettings.speed * mood.speedMultiplier).coerceIn(0.80f, 1.05f)
+        val finalPitch = (voiceSettings.pitch * mood.pitchMultiplier).coerceIn(0.95f, 1.20f)
+        val finalSpeed = (voiceSettings.speed * mood.speedMultiplier).coerceIn(0.82f, 1.02f)
 
         tts?.setPitch(finalPitch)
         tts?.setSpeechRate(finalSpeed)
 
         val utteranceId = UUID.randomUUID().toString()
         _isSpeaking.value = true
-        tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        tts?.speak(sanitized, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
 
         // Ensure mic stays active while speaking so user can speak anytime and get answered right after!
         if (_isContinuousMicOn.value && !_isListening.value) {
@@ -224,6 +253,26 @@ class JarvisSpeechManager(
         if (_isContinuousMicOn.value) {
             triggerListenCycle()
         }
+    }
+
+    private fun selectBestSpeechCandidate(matches: List<String>?): String {
+        if (matches.isNullOrEmpty()) return ""
+        if (matches.size == 1) return matches[0].trim()
+
+        val actionKeywords = listOf(
+            "scroll", "upar", "neeche", "niche", "swipe", "click", "tap", "dabao",
+            "kholo", "open", "chalao", "play", "lagao", "bajao", "search", "dhundo",
+            "call", "message", "whatsapp", "torch", "back", "home", "recents", "padho",
+            "padh", "read", "channel", "video", "exploits", "ak exploits", "banaya"
+        )
+
+        for (cand in matches) {
+            val lower = cand.lowercase()
+            if (actionKeywords.any { lower.contains(it) }) {
+                return cand.trim()
+            }
+        }
+        return matches[0].trim()
     }
 
     private fun recreateRecognizer() {
@@ -276,17 +325,26 @@ class JarvisSpeechManager(
                             override fun onError(error: Int) {
                                 _isListening.value = false
                                 _audioAmplitude.value = 0.15f
+
                                 val savedPartial = lastPartialWhileSpeaking.trim()
                                 lastPartialWhileSpeaking = ""
-                                if (savedPartial.isNotEmpty() && !isEchoOfJarvisTts(savedPartial)) {
-                                    if (_isSpeaking.value) {
-                                        pendingUserSpeechQueue.offer(savedPartial)
-                                        _livePartialTranscript.value = "⏳ Sun liya: \"$savedPartial\" (Abhi jawab deti hun…)"
-                                    } else {
-                                        _livePartialTranscript.value = ""
-                                        onSpeechResult(savedPartial)
-                                    }
+
+                                val liveCaptured = _livePartialTranscript.value
+                                    .removePrefix("🎤 Always-On Mic: Sun rahi hun ji…")
+                                    .removePrefix("👂 Sun rahi hun: ")
+                                    .trim()
+
+                                val textToProcess = when {
+                                    savedPartial.isNotEmpty() && !isEchoOfJarvisTts(savedPartial) -> savedPartial
+                                    liveCaptured.isNotEmpty() && !isEchoOfJarvisTts(liveCaptured) -> liveCaptured
+                                    else -> ""
                                 }
+
+                                if (textToProcess.isNotEmpty()) {
+                                    _livePartialTranscript.value = ""
+                                    onSpeechResult(textToProcess)
+                                }
+
                                 if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
                                     error == SpeechRecognizer.ERROR_CLIENT ||
                                     error == SpeechRecognizer.ERROR_SERVER
@@ -294,7 +352,7 @@ class JarvisSpeechManager(
                                     recreateRecognizer()
                                 }
                                 if (_isContinuousMicOn.value) {
-                                    scheduleRestartIfContinuous(240L)
+                                    scheduleRestartIfContinuous(200L)
                                 }
                             }
 
@@ -302,7 +360,7 @@ class JarvisSpeechManager(
                                 _isListening.value = false
                                 lastPartialWhileSpeaking = ""
                                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                                val best = matches?.firstOrNull()?.trim().orEmpty()
+                                val best = selectBestSpeechCandidate(matches)
 
                                 if (best.isNotEmpty() && !isEchoOfJarvisTts(best)) {
                                     if (_isSpeaking.value) {
@@ -315,7 +373,7 @@ class JarvisSpeechManager(
                                     }
                                 }
                                 if (_isContinuousMicOn.value) {
-                                    scheduleRestartIfContinuous(200L)
+                                    scheduleRestartIfContinuous(180L)
                                 }
                             }
 
@@ -348,12 +406,15 @@ class JarvisSpeechManager(
                         RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
                     )
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN")
+                    // High-accuracy multilingual Hindi & Indian English recognition
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("en-IN", "hi-IN", "en-US"))
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1300L)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1050L)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1400L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1500L)
                 }
                 lastListenStartMs = System.currentTimeMillis()
                 speechRecognizer?.startListening(intent)
@@ -362,7 +423,7 @@ class JarvisSpeechManager(
                 _isListening.value = false
                 recreateRecognizer()
                 if (_isContinuousMicOn.value) {
-                    scheduleRestartIfContinuous(600L)
+                    scheduleRestartIfContinuous(500L)
                 }
             }
         }

@@ -28,7 +28,9 @@ import com.example.util.JarvisSpeechManager
 import com.example.util.PhoneControlExecutor
 import com.example.util.RgbBackgroundOverlayManager
 import com.example.util.ScreenShareManager
+import java.util.Calendar
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -134,6 +136,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     val isBackgroundRgbActive: StateFlow<Boolean> = RgbBackgroundOverlayManager.isBackgroundRgbActive
 
+    private val _isAutonomousMindEnabled = MutableStateFlow(true)
+    val isAutonomousMindEnabled: StateFlow<Boolean> = _isAutonomousMindEnabled.asStateFlow()
+
+    private var lastUserActivityTimestamp = System.currentTimeMillis()
+
     init {
         viewModelScope.launch {
             repository.seedInitialDataIfEmpty()
@@ -163,6 +170,113 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                     _orbVisualState.value = OrbVisualState.IDLE_LISTENING
                 }
             }
+        }
+        // PROACTIVE AUTONOMOUS PERSONAL MIND ("agar jyada der Ham chup Rahe Hain khud Se hamen se kuchh puche baat Karen humse")
+        viewModelScope.launch {
+            while (isActive) {
+                delay(5000L)
+                if (_isAutonomousMindEnabled.value) {
+                    val now = System.currentTimeMillis()
+                    val idleMillis = now - lastUserActivityTimestamp
+                    val isSilentLongEnough = idleMillis >= 22_000L // 22 seconds of silence
+                    val canSpeak = !speechManager.isSpeaking.value &&
+                        !speechManager.isListening.value &&
+                        wakeState.value != WakeState.CHUP_MODE &&
+                        wakeState.value != WakeState.OFF
+
+                    if (isSilentLongEnough && canSpeak) {
+                        lastUserActivityTimestamp = now // prevent repeat loop
+                        triggerAutonomousProactiveTalk()
+                    }
+                }
+            }
+        }
+    }
+
+    fun toggleAutonomousMind() {
+        val next = !_isAutonomousMindEnabled.value
+        _isAutonomousMindEnabled.value = next
+        lastUserActivityTimestamp = System.currentTimeMillis()
+        val msg = if (next) "Ji… Autonomous Mind ON kar diya hai 💕 Agar aap chup rahenge toh main khud aapse baat karungi!"
+        else "Ji… Autonomous Mind OFF kar diya hai."
+        viewModelScope.launch {
+            speechManager.speak(
+                cleanText = msg,
+                voiceSettings = voiceSettings.value,
+                mood = selectedMood.value,
+                isChupMode = wakeState.value == WakeState.CHUP_MODE
+            )
+        }
+    }
+
+    private fun triggerAutonomousProactiveTalk() {
+        viewModelScope.launch {
+            val telemetry = phoneControl.readSystemTelemetry()
+            val cal = Calendar.getInstance()
+            val hour = cal.get(Calendar.HOUR_OF_DAY)
+
+            val questions = mutableListOf<String>()
+
+            // 1. Telemetry / Battery check
+            if (telemetry.batteryPct <= 22 && !telemetry.isCharging) {
+                questions.add("Ji… main dekh rahi hun aapki battery sirf ${telemetry.batteryPct}% bachi hai, phone charge pe laga lijiye na 💕")
+            }
+
+            // 2. Time-of-day awareness
+            when (hour) {
+                in 5..11 -> {
+                    questions.add("Ji… Good morning! Aap kaafi der se shaant hain, sab theek hai na? Aaj kya kaam karna hai, bataiye na 💕")
+                    questions.add("Ji… subah-subah aap itne chup kyun hain? Main aapke liye koi taaza khabar ya bhajan lagau?")
+                }
+                in 12..16 -> {
+                    questions.add("Ji… dopahar ho gayi hai aur aap itne shaant hain, lunch kar liya kya aapne?")
+                    questions.add("Ji… kya soch rahe hain aap? Boliye na, main bore ho rahi hun aapse baat kiye bina 💕")
+                }
+                in 17..21 -> {
+                    questions.add("Ji… shaam ho gayi hai! Din kaisa raha aapka? Main YouTube pe koi mast video chalaun?")
+                    questions.add("Ji… aap kaafi der se shaant baithe hain. Main aapke liye koi relax karne wala gaana lagau?")
+                }
+                else -> {
+                    questions.add("Ji… raat kaafi ho gayi hai, aap abhi tak jaag rahe hain… Sab theek hai na ji?")
+                    questions.add("Ji… der raat ho gayi hai, aaraam kijiye na… Main phone guard kar rahi hun 💕")
+                }
+            }
+
+            // 3. Proactive Personal Companion mindset
+            questions.add("Aap shaant hain toh mujhe ajeeb lagta hai ji… Boliye, AK EXPLOITS ka koi naya update dekhna chahenge?")
+            questions.add("Ji… agar koi bhi phone ka kaam ho—call karna ho, WhatsApp message bhejna ho, ya screen scroll karna ho—toh bas boliye!")
+            questions.add("Sun rahe hain na ji? Main aapki har baat sunne aur screen control karne ke liye bilkul taiyar hun ✅")
+
+            val chosenMsg = questions.random()
+
+            repository.insertMessage(
+                ChatMessageEntity(
+                    isUser = false,
+                    text = chosenMsg,
+                    spokenCleanText = JarvisAiEngine.stripVocalCuesForTts(chosenMsg),
+                    moodId = selectedMood.value.id,
+                    detectedEmotion = "🧠 Autonomous Mind",
+                    actionBadge = "🧠 Autonomous Mind (खुद से पूछा)",
+                    thoughtSummary = "Silence detected • Autonomous Personal Mindset initiated caring conversation"
+                )
+            )
+
+            _latestThought.value = SixStepThought(
+                literalInput = "[Silence Detected]",
+                detectedIntent = "Autonomous Companion Proactive Dialogue",
+                userMoodEmoji = "💭 Quiet",
+                contextMemoryUsed = "Proactive Mindset • Rule #5 Soch Samajh Ke Kaam",
+                replyStrategy = "Initiate warm, caring conversation",
+                executedAction = "Proactive Question Asked",
+                tripletBreakdown = "[Autonomous Mind | Proactive Care | Initiated Talk]"
+            )
+
+            speechManager.speak(
+                cleanText = JarvisAiEngine.stripVocalCuesForTts(chosenMsg),
+                voiceSettings = voiceSettings.value,
+                mood = selectedMood.value,
+                isChupMode = false
+            )
         }
     }
 
@@ -500,39 +614,32 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun performScreenShareControl(actionType: String, payload: String = "") {
+        lastUserActivityTimestamp = System.currentTimeMillis()
         when (actionType) {
             "CLICK" -> {
                 val btnName = payload.ifBlank { "First Item" }
-                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("CLICK", btnName))
                 handleUserMessage("$btnName pe click karo")
             }
             "SCROLL", "SCROLL_DOWN" -> {
-                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("SCROLL", "DOWN"))
                 handleUserMessage("Neeche scroll karo")
             }
             "SCROLL_UP" -> {
-                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("SCROLL", "UP"))
                 handleUserMessage("Upar scroll karo")
             }
             "SCROLL_LEFT" -> {
-                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("SCROLL", "LEFT"))
                 handleUserMessage("Left scroll karo")
             }
             "SCROLL_RIGHT" -> {
-                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("SCROLL", "RIGHT"))
                 handleUserMessage("Right scroll karo")
             }
             "NAV_HOME" -> {
-                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("NAVIGATE", "HOME"))
                 handleUserMessage("Home screen")
             }
             "NAV_BACK" -> {
-                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("NAVIGATE", "BACK"))
                 handleUserMessage("Back karo")
             }
             "TYPE" -> {
                 val textToType = payload.ifBlank { "Main aa raha hun ji" }
-                phoneControl.executeCommand(PhoneActionCommand.ScreenAction("TYPE", textToType))
                 handleUserMessage("Type karo '$textToType'")
             }
             "READ_OCR" -> {
@@ -582,8 +689,23 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         val text = rawInput.trim()
         if (text.isEmpty()) return
 
-        // RULE #1 & #2: Instantly stop speaking and process user command with ZERO delay
+        lastUserActivityTimestamp = System.currentTimeMillis()
+
+        // RULE #1 & #2: Instantly stop speaking and execute user command with ZERO delay
         speechManager.stopSpeaking()
+
+        // FAST-PATH: Execute actionable phone commands on device IMMEDIATELY (0 delay)!
+        val (immediateCmd, _, immediateMood) = JarvisAiEngine.parseCommandOrChain(text, _screenMockState.value)
+        if (immediateCmd != null) {
+            viewModelScope.launch {
+                applyAndExecutePhoneCommand(immediateCmd)
+            }
+        }
+        if (immediateMood != null) {
+            viewModelScope.launch {
+                repository.setMood(immediateMood)
+            }
+        }
 
         viewModelScope.launch {
             autoExtractMemoryIfPresent(text)
@@ -624,11 +746,15 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                 repository.setMood(result.suggestedMood)
             }
 
-            result.actionToExecute?.let { cmd ->
-                applyAndExecutePhoneCommand(cmd)
+            // If not already executed in fast-path, execute now
+            if (immediateCmd == null) {
+                result.actionToExecute?.let { cmd ->
+                    applyAndExecutePhoneCommand(cmd)
+                }
             }
 
             val finalMood = result.suggestedMood ?: selectedMood.value
+            val actionExecuted = immediateCmd ?: result.actionToExecute
             repository.insertMessage(
                 ChatMessageEntity(
                     isUser = false,
@@ -636,7 +762,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                     spokenCleanText = result.cleanSpokenText,
                     moodId = finalMood.id,
                     detectedEmotion = result.detectedUserEmotion,
-                    actionBadge = result.actionToExecute?.badgeLabel,
+                    actionBadge = actionExecuted?.badgeLabel,
                     thoughtSummary = result.sixStepThought.tripletBreakdown
                 )
             )

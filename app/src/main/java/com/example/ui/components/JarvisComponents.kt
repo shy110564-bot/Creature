@@ -709,6 +709,300 @@ fun JarvisOrb(
     }
 }
 
+// 4B. CINEMATIC IRON MAN ARC REACTOR (Continuously spinning rotating outer, middle & inner tech rings)
+@Composable
+fun IronManArcReactor(
+    modifier: Modifier = Modifier,
+    reactorSize: Dp = 300.dp,
+    isActive: Boolean = true,
+    isSpeaking: Boolean = false,
+    isListening: Boolean = false,
+    audioAmplitude: Float = 0f,
+    onClick: () -> Unit = {}
+) {
+    val haptic = LocalHapticFeedback.current
+    val infiniteTransition = rememberInfiniteTransition(label = "arc_reactor_rotation")
+
+    // Dynamic rotation speeds: spins visibly "gol-gol" at all times, accelerating when speaking/listening
+    val speedMultiplier = if (isSpeaking) 2.4f else if (isListening) 1.8f else 1.0f
+
+    val outerAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = (4800 / speedMultiplier).toInt().coerceAtLeast(1000), easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "reactor_outer_rot"
+    )
+
+    val middleAngle by infiniteTransition.animateFloat(
+        initialValue = 360f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = (3200 / speedMultiplier).toInt().coerceAtLeast(800), easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "reactor_middle_rot"
+    )
+
+    val innerAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = (1800 / speedMultiplier).toInt().coerceAtLeast(500), easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "reactor_inner_rot"
+    )
+
+    val reactorHue by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "reactor_auto_rgb_hue"
+    )
+
+    val corePulse by infiniteTransition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = if (isSpeaking) 350 else 900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "reactor_core_pulse"
+    )
+
+    val primaryColor = Color.hsv(reactorHue % 360f, 1f, 1f)
+    val secondaryColor = Color.hsv((reactorHue + 120f) % 360f, 1f, 1f)
+    val tertiaryColor = Color.hsv((reactorHue + 240f) % 360f, 1f, 1f)
+    val primaryRed = primaryColor
+    val brightCrimson = secondaryColor
+    val darkRedTrack = primaryColor.copy(alpha = 0.45f)
+    val paleSpokeColor = tertiaryColor
+    val hotGlowGold = Color(0xFFFFE082)
+
+    Box(
+        modifier = modifier
+            .size(reactorSize)
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            }
+            .testTag("iron_man_arc_reactor"),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val maxR = size.minDimension / 2f
+
+            // 1. Ambient Background Crimson Halo
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        primaryRed.copy(alpha = if (isSpeaking) 0.55f else 0.35f),
+                        primaryRed.copy(alpha = 0.15f),
+                        Color.Transparent
+                    ),
+                    center = center,
+                    radius = maxR * 0.98f
+                ),
+                radius = maxR * 0.98f,
+                center = center
+            )
+
+            // 2. Outer Track: Dashed & Segmented Ring with Ticks (Radius 0.92 * maxR)
+            rotate(degrees = outerAngle, pivot = center) {
+                // Dashed circular tracks
+                drawCircle(
+                    color = darkRedTrack,
+                    radius = maxR * 0.92f,
+                    center = center,
+                    style = Stroke(width = 1.5.dp.toPx())
+                )
+                drawCircle(
+                    color = darkRedTrack.copy(alpha = 0.4f),
+                    radius = maxR * 0.86f,
+                    center = center,
+                    style = Stroke(width = 1.dp.toPx())
+                )
+
+                // 24 Radial tick notches on outer ring
+                val tickCount = 24
+                for (i in 0 until tickCount) {
+                    val angleDeg = i * (360f / tickCount)
+                    val rad = Math.toRadians(angleDeg.toDouble())
+                    val isMajor = i % 4 == 0
+                    val r1 = maxR * (if (isMajor) 0.88f else 0.90f)
+                    val r2 = maxR * (if (isMajor) 0.94f else 0.93f)
+                    val p1 = Offset(
+                        center.x + (r1 * cos(rad)).toFloat(),
+                        center.y + (r1 * sin(rad)).toFloat()
+                    )
+                    val p2 = Offset(
+                        center.x + (r2 * cos(rad)).toFloat(),
+                        center.y + (r2 * sin(rad)).toFloat()
+                    )
+                    drawLine(
+                        color = if (isMajor) brightCrimson else darkRedTrack,
+                        start = p1,
+                        end = p2,
+                        strokeWidth = (if (isMajor) 2.5f else 1.5f).dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+
+                // 4 Tech Blocks on outer track
+                val blockAngles = listOf(20f, 110f, 200f, 290f)
+                for (bAngle in blockAngles) {
+                    val rad = Math.toRadians(bAngle.toDouble())
+                    val bx = center.x + (maxR * 0.92f * cos(rad)).toFloat()
+                    val by = center.y + (maxR * 0.92f * sin(rad)).toFloat()
+                    drawCircle(
+                        color = brightCrimson,
+                        radius = 3.5.dp.toPx(),
+                        center = Offset(bx, by)
+                    )
+                }
+            }
+
+            // 3. Middle Orbit Track (Radius 0.74 * maxR): Counter-Rotating Tech Blocks & Arcs
+            rotate(degrees = middleAngle, pivot = center) {
+                // Segmented arcs
+                val arcCount = 6
+                for (i in 0 until arcCount) {
+                    val start = i * 60f + 8f
+                    drawArc(
+                        color = primaryRed.copy(alpha = 0.75f),
+                        startAngle = start,
+                        sweepAngle = 44f,
+                        useCenter = false,
+                        topLeft = Offset(center.x - maxR * 0.74f, center.y - maxR * 0.74f),
+                        size = Size(maxR * 1.48f, maxR * 1.48f),
+                        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                }
+
+                // 8 Orbiting Floating Tech Rectangles
+                val techRectCount = 8
+                val blockW = 12.dp.toPx()
+                val blockH = 6.dp.toPx()
+                for (i in 0 until techRectCount) {
+                    val aDeg = i * (360f / techRectCount) + 15f
+                    val aRad = Math.toRadians(aDeg.toDouble())
+                    val rMid = maxR * 0.74f
+                    val rx = center.x + (rMid * cos(aRad)).toFloat()
+                    val ry = center.y + (rMid * sin(aRad)).toFloat()
+
+                    rotate(degrees = aDeg + 90f, pivot = Offset(rx, ry)) {
+                        drawRoundRect(
+                            color = primaryRed,
+                            topLeft = Offset(rx - blockW / 2f, ry - blockH / 2f),
+                            size = Size(blockW, blockH),
+                            cornerRadius = CornerRadius(2.dp.toPx())
+                        )
+                    }
+                }
+            }
+
+            // 4. Inner Ring Track (Radius 0.58 * maxR)
+            rotate(degrees = innerAngle, pivot = center) {
+                drawCircle(
+                    color = primaryRed.copy(alpha = 0.65f),
+                    radius = maxR * 0.58f,
+                    center = center,
+                    style = Stroke(width = 2.dp.toPx())
+                )
+
+                // 16 small tech dots on inner track
+                for (i in 0 until 16) {
+                    val aRad = Math.toRadians((i * 22.5).toDouble())
+                    val dx = center.x + (maxR * 0.58f * cos(aRad)).toFloat()
+                    val dy = center.y + (maxR * 0.58f * sin(aRad)).toFloat()
+                    drawCircle(
+                        color = if (i % 2 == 0) brightCrimson else darkRedTrack,
+                        radius = 2.dp.toPx(),
+                        center = Offset(dx, dy)
+                    )
+                }
+            }
+
+            // 5. Turbine Spoke Ring (Radius 0.44 * maxR) & 12 Radial Spoke Capsules
+            val turbineR = maxR * 0.44f
+            drawCircle(
+                color = primaryRed,
+                radius = turbineR,
+                center = center,
+                style = Stroke(width = 3.dp.toPx())
+            )
+
+            // 12 Radial Spoke Slits
+            rotate(degrees = innerAngle * 0.5f, pivot = center) {
+                val spokeCount = 12
+                val spokeLen = maxR * 0.10f
+                for (i in 0 until spokeCount) {
+                    val deg = i * (360f / spokeCount)
+                    val sRad = Math.toRadians(deg.toDouble())
+                    val pStart = Offset(
+                        center.x + (turbineR * 0.72f * cos(sRad)).toFloat(),
+                        center.y + (turbineR * 0.72f * sin(sRad)).toFloat()
+                    )
+                    val pEnd = Offset(
+                        center.x + ((turbineR * 0.72f + spokeLen) * cos(sRad)).toFloat(),
+                        center.y + ((turbineR * 0.72f + spokeLen) * sin(sRad)).toFloat()
+                    )
+                    drawLine(
+                        color = paleSpokeColor.copy(alpha = 0.90f),
+                        start = pStart,
+                        end = pEnd,
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+
+            // 6. Radiant Center Arc Reactor Core
+            val dynamicScale = corePulse + (audioAmplitude.coerceIn(0f, 1f) * 0.12f)
+            val coreR = maxR * 0.30f * dynamicScale
+
+            // Core Ruby Red Sphere
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color.White,
+                        hotGlowGold,
+                        brightCrimson,
+                        primaryRed,
+                        Color(0xFF88001B)
+                    ),
+                    center = center,
+                    radius = coreR
+                ),
+                radius = coreR,
+                center = center
+            )
+
+            // Bright Core Lens Border
+            drawCircle(
+                color = Color.White.copy(alpha = 0.85f),
+                radius = coreR * 0.38f,
+                center = center,
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+
+            // White-hot center focal spot
+            drawCircle(
+                color = Color.White,
+                radius = coreR * 0.22f,
+                center = center
+            )
+        }
+    }
+}
+
 // 5. MOOD CHIP
 @Composable
 fun MoodChip(

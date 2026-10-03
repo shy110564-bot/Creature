@@ -704,7 +704,10 @@ object JarvisAiEngine {
             )
         }
         if (lower.contains("screen pe kya") || lower.contains("screen padho") || lower.contains("read screen") ||
-            lower.contains("screen mein kya") || lower.contains("screen dekho")
+            lower.contains("screen mein kya") || lower.contains("screen dekho") || lower.contains("padh ke sunao") ||
+            lower.contains("kya likha hai") || lower.contains("kya likha") || lower.contains("padh do") ||
+            lower.contains("message padho") || lower == "padho" || lower.contains("padho ji") ||
+            lower.contains("screen read") || lower.contains("text padho") || lower.contains("yeh padho") || lower.contains("ye padho")
         ) {
             return Triple(
                 PhoneActionCommand.ScreenAction("READ_OCR", currentScreen.headlineText),
@@ -1248,6 +1251,56 @@ object JarvisAiEngine {
             }
         }
 
+        // SMART INTENT FALLBACK: If user gave ANY actionable instruction, execute it immediately!
+        if (lower.contains("click") || lower.contains("dabao") || lower.contains("tap") || lower.contains("chuno") || lower.contains("select")) {
+            val target = clause.replace(Regex("(?i)jarvis|ispe|uspe|wale pe|pe click karo|click karo|click|tap karo|tap|dabao|chuno|select karo"), "").trim().ifEmpty { "First Item" }
+            return Triple(
+                PhoneActionCommand.ScreenAction("CLICK", target),
+                ParsedCommandTriplet("Screen Control", "Click Target", target),
+                moodSwitch
+            )
+        }
+        if (lower.contains("scroll") || lower.contains("swipe") || lower.contains("upar") || lower.contains("neeche") || lower.contains("niche") || lower.contains("down") || lower.contains("up")) {
+            val dir = if (lower.contains("upar") || lower.contains("up")) "UP" else if (lower.contains("left") || lower.contains("baayein")) "LEFT" else if (lower.contains("right") || lower.contains("daayein")) "RIGHT" else "DOWN"
+            return Triple(
+                PhoneActionCommand.ScreenAction("SCROLL", dir),
+                ParsedCommandTriplet("Screen Control", "Scroll $dir", "Screen"),
+                moodSwitch
+            )
+        }
+        if (lower.contains("kholo") || lower.contains("open")) {
+            val app = clause.replace(Regex("(?i)jarvis|kholo|open karo|open|chalu karo|app"), "").trim().ifEmpty { "YouTube" }
+            return Triple(
+                PhoneActionCommand.OpenAppOrStore(app, "OPEN"),
+                ParsedCommandTriplet(app, "Open App", app),
+                moodSwitch
+            )
+        }
+        if (lower.contains("search") || lower.contains("dhundo") || lower.contains("khojo")) {
+            val q = thinkAndExtractSearchQuery(clause).ifBlank { "Latest News" }
+            return Triple(
+                PhoneActionCommand.SearchGoogle(q),
+                ParsedCommandTriplet("Google", "Search", q),
+                moodSwitch
+            )
+        }
+        if (lower.contains("call") || lower.contains("phone lagao")) {
+            val who = clause.replace(Regex("(?i)jarvis|call lagao|call karo|phone lagao|phone karo|ko|call"), "").trim().ifEmpty { "Mummy" }
+            return Triple(
+                PhoneActionCommand.MakePhoneCall(who),
+                ParsedCommandTriplet("Phone Call", "Call", who),
+                moodSwitch
+            )
+        }
+        if (lower.contains("torch") || lower.contains("flashlight")) {
+            val turnOn = !lower.contains("off") && !lower.contains("band")
+            return Triple(
+                PhoneActionCommand.ToggleTorch(turnOn),
+                ParsedCommandTriplet("Torch", if (turnOn) "Turn ON" else "Turn OFF", "Flashlight"),
+                moodSwitch
+            )
+        }
+
         return Triple(
             null,
             ParsedCommandTriplet("JARVIS Companion", "Converse", clause),
@@ -1659,8 +1712,15 @@ object JarvisAiEngine {
                     "START_SHARE" -> "Ji, screen share on ho gaya ✅"
                     "STOP_SHARE" -> "Ji, screen share off kar diya ✅"
                     "READ_OCR" -> {
-                        val liveText = JarvisAccessibilityService.liveScreenText.value.ifBlank { screenState.headlineText }
-                        "Ji, likha hai — '${liveText.take(50)}'"
+                        val activeText = JarvisAccessibilityService.instance?.extractWindowTextSummary()?.trim().orEmpty()
+                        val storedText = JarvisAccessibilityService.liveScreenText.value.trim()
+                        val liveText = if (activeText.isNotBlank()) activeText else storedText.ifBlank { screenState.headlineText }
+                        val cleanLive = liveText.replace(" • ", ", ").trim()
+                        if (cleanLive.isNotBlank() && !cleanLive.contains("No screen content captured yet")) {
+                            "Ji, screen pe likha hai — '${cleanLive.take(220)}' ✅"
+                        } else {
+                            "Ji, screen pe abhi text nahi dikh raha, Accessibility permission ON kar dijiye na ✅"
+                        }
                     }
                     "CLICK" -> when {
                         command.value.contains("View channel", ignoreCase = true) ->

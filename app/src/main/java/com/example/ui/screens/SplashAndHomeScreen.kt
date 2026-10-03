@@ -45,14 +45,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ScreenShare
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.StopScreenShare
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -67,7 +79,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -86,11 +100,16 @@ import com.example.data.model.ScreenMockState
 import com.example.data.model.WakeState
 import com.example.ui.components.ChatBubble
 import com.example.ui.components.GlassCard
+import com.example.ui.components.IronManArcReactor
 import com.example.ui.components.JarvisOrb
 import com.example.ui.components.NeonButton
 import com.example.ui.components.NeonIconButton
 import com.example.ui.components.RgbNeonDivider
 import com.example.ui.components.VoiceWaveform
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.delay
 import com.example.ui.theme.ElevatedGlass
 import com.example.ui.theme.GlassBorderCyan
 import com.example.ui.theme.GlassBorderLight
@@ -146,12 +165,15 @@ fun HomeScreen(
     onCancelSensitiveAction: () -> Unit = {},
     onSetCapturedBitmap: (Bitmap?) -> Unit = {},
     onPerformScreenAction: (String, String) -> Unit = { _, _ -> },
+    isAutonomousMindEnabled: Boolean = true,
+    onToggleAutonomousMind: () -> Unit = {},
     onOpenCodingStudio: () -> Unit = {},
     onOpenSettings: () -> Unit
 ) {
     val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
     var showScreenPanel by remember { mutableStateOf(false) }
+    var showArcReactorHero by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
 
     val micPermissionLauncher = rememberLauncherForActivityResult(
@@ -242,7 +264,7 @@ fun HomeScreen(
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag("home_screen")
     ) {
-        // 1. TOP BAR: JARVIS ORB + STATUS ON LEFT, LIVE SCREEN SHARE & SETTINGS IN TOP-RIGHT CORNER
+        // 1. TOP BAR: JARVIS CORE REACTOR + LIVE STATUS + QUICK ACTIONS
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -276,93 +298,116 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "JARVIS",
+                            text = "JARVIS 6.0",
                             style = TextStyle(
                                 fontFamily = SoraFontFamily,
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 19.sp,
+                                fontSize = 18.sp,
                                 brush = Brush.linearGradient(listOf(rgbColor1, rgbColor2, rgbColor3))
                             )
                         )
                     }
                     Text(
                         text = when {
-                            isContinuousMicOn -> "🎤 Always-On Background Mic ON"
-                            isScreenSharingLive -> "🔴 Live Screen Share ON"
                             isSpeaking -> "🔊 Bol rahi hun ji… 💕"
-                            else -> "⚡ Tap 🎤 Once for Continuous Talk"
+                            isListening -> "🎤 Sun rahi hun (0 delay)…"
+                            isContinuousMicOn -> "🎤 Always-On Mic ON"
+                            isScreenSharingLive -> "🔴 Live Screen Share ON"
+                            isAutonomousMindEnabled -> "🧠 Mind: Active • ⚡ Ready"
+                            else -> "⚡ Tap 🎤 to Speak"
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isContinuousMicOn) NeonGreen else TextSecondary
+                        color = if (isContinuousMicOn || isAutonomousMindEnabled) NeonGreen else TextSecondary,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
 
-            // Top-Right Corner: Side Coding Studio, Background RGB Light, Live Screen Share (ON/OFF), and Settings
+            // Top-Right Corner HUD Pills: Autonomous Mind, Screen Status, Live Share, Coding Studio, RGB, Settings
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Side Coding Studio Pill Button ("ek side coding ka system add kar do")
+                // 1. Autonomous Proactive Personal Mind Toggle ("agar chup rahe toh khud se puche")
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
-                        .background(SurfaceAlt)
-                        .border(1.5.dp, NeonPurple, RoundedCornerShape(999.dp))
-                        .clickable { onOpenCodingStudio() }
-                        .padding(horizontal = 7.dp, vertical = 7.dp)
-                        .testTag("top_coding_studio_btn"),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "💻 Code",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = NeonCyan,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Background RGB Light Pill Toggle
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(
-                            if (isBackgroundRgbActive) Brush.linearGradient(listOf(rgbColor1.copy(alpha = 0.32f), rgbColor2.copy(alpha = 0.32f)))
-                            else Brush.linearGradient(listOf(SurfaceAlt, SurfaceAlt))
-                        )
+                        .background(if (isAutonomousMindEnabled) NeonPurple.copy(alpha = 0.28f) else SurfaceAlt)
                         .border(
-                            1.5.dp,
-                            Brush.linearGradient(listOf(rgbColor1, rgbColor2, rgbColor3)),
+                            1.3.dp,
+                            if (isAutonomousMindEnabled) NeonPurple else GlassBorderLight,
                             RoundedCornerShape(999.dp)
                         )
-                        .clickable { onToggleBackgroundRgb() }
-                        .padding(horizontal = 7.dp, vertical = 7.dp)
-                        .testTag("top_rgb_bg_btn"),
+                        .clickable { onToggleAutonomousMind() }
+                        .padding(horizontal = 7.dp, vertical = 6.dp)
+                        .testTag("top_autonomous_mind_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Psychology,
+                        contentDescription = "Autonomous Personal Mind",
+                        tint = if (isAutonomousMindEnabled) NeonPurple else TextSecondary,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        text = if (isBackgroundRgbActive) "🌈 ON" else "🌈 RGB",
+                        text = if (isAutonomousMindEnabled) "Mind ON" else "Mind",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isBackgroundRgbActive) NeonGreen else TextPrimary,
+                        color = if (isAutonomousMindEnabled) NeonPurple else TextSecondary,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                // Live Screen Share ON / OFF Toggle Pill Button
+                // 2. Accessibility Screen Control Status Indicator Pill
+                val isA11yActive = com.example.service.JarvisAccessibilityService.isRunning
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
-                        .background(
-                            if (isScreenSharingLive) NeonRed.copy(alpha = 0.28f) else SurfaceAlt
-                        )
+                        .background(if (isA11yActive) NeonGreen.copy(alpha = 0.20f) else HotPink.copy(alpha = 0.22f))
                         .border(
-                            1.5.dp,
+                            1.3.dp,
+                            if (isA11yActive) NeonGreen else HotPink,
+                            RoundedCornerShape(999.dp)
+                        )
+                        .clickable {
+                            runCatching {
+                                val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(intent)
+                            }
+                        }
+                        .padding(horizontal = 7.dp, vertical = 6.dp)
+                        .testTag("top_accessibility_status_btn"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isA11yActive) Icons.Default.CheckCircle else Icons.Default.Warning,
+                        contentDescription = "Accessibility Screen Control Status",
+                        tint = if (isA11yActive) NeonGreen else HotPink,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = if (isA11yActive) "Screen ✅" else "Screen ⚠️",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isA11yActive) NeonGreen else HotPink,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // 3. Live Screen Share Toggle Pill
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (isScreenSharingLive) NeonRed.copy(alpha = 0.28f) else SurfaceAlt)
+                        .border(
+                            1.3.dp,
                             if (isScreenSharingLive) NeonRed else NeonCyan,
                             RoundedCornerShape(999.dp)
                         )
                         .clickable {
                             if (isScreenSharingLive) {
-                                // 1-Tap to turn OFF Screen Share anytime!
                                 onStopLiveScreenShare()
                                 showScreenPanel = false
                             } else {
@@ -370,7 +415,7 @@ fun HomeScreen(
                                 requestSystemScreenShare()
                             }
                         }
-                        .padding(horizontal = 7.dp, vertical = 7.dp)
+                        .padding(horizontal = 7.dp, vertical = 6.dp)
                         .testTag("top_screen_share_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -378,25 +423,43 @@ fun HomeScreen(
                         imageVector = if (isScreenSharingLive) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
                         contentDescription = "Live Screen Share ON/OFF",
                         tint = if (isScreenSharingLive) NeonRed else NeonCyan,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(3.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
                     Text(
-                        text = if (isScreenSharingLive) "OFF" else "Screen",
+                        text = if (isScreenSharingLive) "OFF" else "Share",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isScreenSharingLive) NeonRed else NeonCyan,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                // Top-Right Corner Settings Button (Permissions + Gemini API Key)
+                // 4. Side Coding Studio Pill Button
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .background(SurfaceAlt)
-                        .border(1.5.dp, NeonGreen, RoundedCornerShape(999.dp))
+                        .border(1.3.dp, NeonCyan, RoundedCornerShape(999.dp))
+                        .clickable { onOpenCodingStudio() }
+                        .padding(horizontal = 7.dp, vertical = 6.dp)
+                        .testTag("top_coding_studio_btn"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "💻",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // 5. Settings Button
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(SurfaceAlt)
+                        .border(1.3.dp, NeonGreen, RoundedCornerShape(999.dp))
                         .clickable { onOpenSettings() }
-                        .padding(horizontal = 7.dp, vertical = 7.dp)
+                        .padding(horizontal = 7.dp, vertical = 6.dp)
                         .testTag("top_settings_btn"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -404,7 +467,7 @@ fun HomeScreen(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Settings, Permissions & API Key",
                         tint = NeonGreen,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
@@ -412,6 +475,238 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(6.dp))
         RgbNeonDivider()
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // HERO IRON MAN ARC REACTOR (Continuously spinning gol-gol with dynamic RGB/Cyan energy)
+        AnimatedVisibility(visible = showArcReactorHero) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                IronManArcReactor(
+                    reactorSize = 175.dp,
+                    isActive = true,
+                    isSpeaking = isSpeaking,
+                    isListening = isListening || isContinuousMicOn,
+                    audioAmplitude = audioAmplitude,
+                    onClick = {
+                        if (isContinuousMicOn || isListening) {
+                            onStopVoiceListen()
+                        } else {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(if (isSpeaking) rgbColor2 else if (isListening) NeonGreen else NeonCyan)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = when {
+                            isSpeaking -> "⚡ ARC REACTOR: AUDIO DISCHARGING • 🔊"
+                            isListening || isContinuousMicOn -> "⚡ ARC REACTOR: LISTENING • 🎤"
+                            else -> "⚡ ARC REACTOR: ONLINE • ROTATING GOL-GOL"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSpeaking) rgbColor2 else if (isListening) NeonGreen else NeonCyan,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+        }
+
+        // 2. QUICK FLOATING SCREEN CONTROL HUD STRIP
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(SurfaceAlt.copy(alpha = 0.88f))
+                .border(1.dp, rgbColor1.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 6.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Toggle Arc Reactor Display Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (showArcReactorHero) NeonCyan.copy(alpha = 0.22f) else SurfaceAlt)
+                    .border(1.dp, NeonCyan, RoundedCornerShape(8.dp))
+                    .clickable { showArcReactorHero = !showArcReactorHero }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .testTag("toggle_arc_reactor_btn")
+            ) {
+                Text(
+                    text = if (showArcReactorHero) "⚛️ Reactor ▲" else "⚛️ Reactor ▼",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonCyan,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                text = "⚡ SCREEN HUD:",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = NeonCyan,
+                modifier = Modifier.padding(start = 4.dp, end = 2.dp)
+            )
+
+            // Click Screen Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(NeonGreen.copy(alpha = 0.18f))
+                    .border(1.dp, NeonGreen, RoundedCornerShape(8.dp))
+                    .clickable { onPerformScreenAction("CLICK", "First Item") }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "👆 Click",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonGreen,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Scroll Up Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(NeonCyan.copy(alpha = 0.18f))
+                    .border(1.dp, NeonCyan, RoundedCornerShape(8.dp))
+                    .clickable { onPerformScreenAction("SCROLL_UP", "") }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "⬆️ Upar",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonCyan,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Scroll Down Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(NeonGreen.copy(alpha = 0.18f))
+                    .border(1.dp, NeonGreen, RoundedCornerShape(8.dp))
+                    .clickable { onPerformScreenAction("SCROLL_DOWN", "") }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "⬇️ Neeche",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonGreen,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Home Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(NeonCyan.copy(alpha = 0.18f))
+                    .border(1.dp, NeonCyan, RoundedCornerShape(8.dp))
+                    .clickable { onPerformScreenAction("NAV_HOME", "") }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "🏠 Home",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonCyan,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Back Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(HotPink.copy(alpha = 0.18f))
+                    .border(1.dp, HotPink, RoundedCornerShape(8.dp))
+                    .clickable { onPerformScreenAction("NAV_BACK", "") }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "🔙 Back",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = HotPink,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Recents Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(NeonPurple.copy(alpha = 0.18f))
+                    .border(1.dp, NeonPurple, RoundedCornerShape(8.dp))
+                    .clickable {
+                        val a11y = com.example.service.JarvisAccessibilityService.instance
+                        if (a11y != null) a11y.performSystemNavigation("RECENTS")
+                        else onPerformScreenAction("NAV_HOME", "")
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "📑 Recents",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonPurple,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Screenshot Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(rgbColor2.copy(alpha = 0.18f))
+                    .border(1.dp, rgbColor2, RoundedCornerShape(8.dp))
+                    .clickable {
+                        val a11y = com.example.service.JarvisAccessibilityService.instance
+                        if (a11y != null) a11y.performSystemNavigation("SCREENSHOT")
+                        else onPerformScreenAction("READ_OCR", "")
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "📸 Screenshot",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = rgbColor2,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Read Screen Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(HotPink.copy(alpha = 0.18f))
+                    .border(1.dp, HotPink, RoundedCornerShape(8.dp))
+                    .clickable { onPerformScreenAction("READ_OCR", "") }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "📖 Screen Padho",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = HotPink,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
 
         // 2. LIVE SCREEN SHARE & CONTROL PANEL
         AnimatedVisibility(visible = showScreenPanel || isScreenSharingLive) {
