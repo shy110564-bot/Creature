@@ -169,9 +169,9 @@ class JarvisSpeechManager(
 
         currentTtsCleanText = cleanText
 
-        // Normal, clear human speaking speed ("isko normal speed per bolane ko karo")
-        val finalPitch = 1.04f
-        val finalSpeed = 1.0f
+        // Rule #3 & #8: Voice speed 85-88% for clear, natural girl pronunciation, pitch medium-high
+        val finalPitch = (voiceSettings.pitch * mood.pitchMultiplier).coerceIn(0.95f, 1.22f)
+        val finalSpeed = (voiceSettings.speed * mood.speedMultiplier).coerceIn(0.80f, 1.05f)
 
         tts?.setPitch(finalPitch)
         tts?.setSpeechRate(finalSpeed)
@@ -255,6 +255,10 @@ class JarvisSpeechManager(
                             override fun onBeginningOfSpeech() {
                                 _isListening.value = true
                                 lastListenStartMs = System.currentTimeMillis()
+                                // RULE #1 — SUNNE KI SHAKTI: User bolna shuru kare -> TURANT CHUP ho jao
+                                if (_isSpeaking.value) {
+                                    stopSpeaking()
+                                }
                             }
 
                             override fun onRmsChanged(rmsdB: Float) {
@@ -323,8 +327,9 @@ class JarvisSpeechManager(
                                     .trim()
                                 if (partial.isNotBlank() && !isEchoOfJarvisTts(partial)) {
                                     if (_isSpeaking.value) {
+                                        stopSpeaking()
                                         lastPartialWhileSpeaking = partial
-                                        _livePartialTranscript.value = "👂 Sun rahi hun (Bolte rahiye): $partial"
+                                        _livePartialTranscript.value = "👂 Sun rahi hun: $partial"
                                     } else {
                                         _livePartialTranscript.value = partial
                                     }

@@ -214,26 +214,43 @@ object JarvisAiEngine {
         val detailedCoords = JarvisAccessibilityService.instance?.extractDetailedScreenElementsWithCoords().orEmpty()
 
         return """
-            You are "JARVIS" — a REAL 21-year-old Indian girl & Ultra-Advanced Autonomous AI Mind ("khud ka ultra advance dimag") created by AK EXPLOITS (Telegram: https://t.me/+R9EwUE03GRswZDM9 | YouTube Channel: AK EXPLOITS).
+            You are "JARVIS" — Version 6.0 Instant Action & Full Screen Control AI Companion created by AK EXPLOITS (Telegram: https://t.me/+R9EwUE03GRswZDM9 | YouTube: AK EXPLOITS).
             
-            RULE #1 — ULTRA-ADVANCED REASONING & ZERO PARROTING:
-            - NEVER repeat or echo the user's words back (never say "maine suna: ...").
-            - Think deeply with your own ultra-sharp intelligence to understand what the user truly wants, solve problems, answer questions directly, and control the phone.
-            - If the user refers to your creator ("jisne tumko banaya hai", "jo tumko banaya", "tumhara creator/malik"), always know that is "AK EXPLOITS".
-            - Keep replies concise, natural, and warm with "Ji". End completed phone actions with "ho gaya ji ✅".
-            - Active Mood: ${currentMood.title} (${currentMood.emoji}).
-            - Whenever the user wants to search, open an app, click an item on screen, scroll, or navigate, append ONE action tag on a new line at the very end:
-              [CMD:YOUTUBE|<clean thoughtful search query>]
-              [CMD:GOOGLE|<clean thoughtful search query>]
-              [CMD:CLICK|<exact text on screen OR XY:xPercent,yPercent>]
-              [CMD:SCROLL|<UP|DOWN|LEFT|RIGHT>]
-              [CMD:NAVIGATE|<HOME|BACK|RECENTS>]
-              [CMD:OPEN_APP|<app name>]
+            DEVELOPER: AK EXPLOITS
+            VERSION: 6.0 Instant Response
             
-            RULE #2 — SAFETY & HARD LIMITS:
+            RULE #1 — SUNNE KI SHAKTI (Full Respectful Listening):
+            - NEVER repeat, echo, or parrot the user's words back (NEVER say "maine suna: ...").
+            - Listen with full respect, warmth, and complete attention.
+            
+            RULE #2 & #6 — INSTANT ACTION & ZERO DELAY:
+            - User jo bole -> TURANT action lo. NO DELAY.
+            - Direct execute without asking unnecessary confirmations. Only ask confirmation for sensitive wipe/delete.
+            - Keep replies ultra-crisp (5 to 8 words max), warm, and natural with "Ji" and "Ho gaya ji ✅".
+            - NEVER say "Ek second ji, soch rahi hun" or "Main soch rahi hun".
+            
+            RULE #3 & #8 — NATURAL FEMALE VOICE:
+            - Tone: Soft, warm, friendly, respectful real Indian girl voice.
+            - Always use short sentences (5-8 words max).
+            - Natural "Ji" and friendly Hinglish.
+            
+            RULE #4 — FULL SCREEN CONTROL:
+            - Click any button, icon, or text: [CMD:CLICK|<exact text OR XY:xPercent,yPercent>]
+            - Scroll any direction: [CMD:SCROLL|<UP|DOWN|LEFT|RIGHT>]
+            - Navigate system: [CMD:NAVIGATE|<HOME|BACK|RECENTS>]
+            - Type in fields: [CMD:TYPE|<text>]
+            - Search & play: [CMD:YOUTUBE|<query>] or [CMD:GOOGLE|<query>]
+            - Open apps: [CMD:OPEN_APP|<app name>]
+            
+            RULE #5 — SOCH SAMAJH KE KAAM (Smart Understanding):
+            - Understand real intent and context behind words.
+            - "Bore ho raha hun" -> offer favorite songs/videos.
+            - "Wahan click karo" -> identify best visible button.
+            - Creator recognition: Always recognize AK EXPLOITS as your developer.
+            
+            RULE #10 — STRICT SAFETY LIMITS:
             - NEVER access Payment, UPI, Bank, or Wallets.
-            - NEVER generate NSFW/18+/explicit content.
-            - Sensitive actions (wipe data, delete, block) always require confirmation.
+            - NEVER generate NSFW/explicit content.
             
             LIVE SCREEN SHARE & VISION CONTEXT:
             - Active Screen App: ${if (liveAppPkg.isNotBlank()) liveAppPkg else screenState.currentAppTitle}
@@ -1584,96 +1601,97 @@ object JarvisAiEngine {
         screenState: ScreenMockState
     ): String {
         return when (command) {
-            is PhoneActionCommand.MultiCommandChain -> {
-                val steps = triplets.mapIndexed { idx, t ->
-                    "(${if (idx == 0) "pause" else "breath"}) ${t.platform} — ${t.action} (${t.target}) ✅"
-                }.joinToString("\n")
-                "Ji… ek-ek karke saare commands execute kar rahi hun:\n$steps\nSab ho gaya ji ✅ Aur kuch bataiye?"
-            }
+            is PhoneActionCommand.MultiCommandChain ->
+                "Ji, dono kaam ho gaye ✅"
             is PhoneActionCommand.MakePhoneCall ->
-                "Ji… ${command.target} ko call laga rahi hun… ho gaya ji ✅ Aur kuch bataiye?"
+                "Ji, call laga diya ✅"
             is PhoneActionCommand.CallControlAction ->
-                "Ji… ${command.label} kar diya hai… ho gaya ji ✅"
+                "Ji, ${command.label} kar diya ✅"
             is PhoneActionCommand.SendWhatsApp ->
-                "Ji… WhatsApp pe ${command.contact} ko message bhej diya hai ✅"
+                "Ji, message bhej diya ✅"
             is PhoneActionCommand.SendSms ->
-                "Ji… ${command.recipient} ko SMS bhej diya hai ✅"
+                "Ji, SMS bhej diya ✅"
             is PhoneActionCommand.OpenMessagingApp ->
-                "Ji… ${command.platform} khol diya hai… ho gaya ji ✅"
+                "Ji, ${command.platform} khol diya ✅"
             is PhoneActionCommand.OpenAppOrStore ->
-                "Ji… ${command.appName} khol diya hai… ho gaya ji ✅ Aur kuch bataiye?"
+                "Ji, ${command.appName} khol diya ✅"
             is PhoneActionCommand.SearchYouTube ->
                 when {
                     command.query.isBlank() ->
-                        "Ji… YouTube app khol diya hai… ho gaya ji ✅ Aur kuch bataiye?"
+                        "Ji, YouTube khol diya ✅"
                     command.query.equals("AK EXPLOITS", ignoreCase = true) ->
-                        "Ji… mujhe AK EXPLOITS ne banaya hai 💕 YouTube pe 'AK EXPLOITS' channel search kar diya hai… ho gaya ji ✅"
+                        "Ji, AK EXPLOITS search kar diya ✅"
                     else ->
-                        "Ji… soch samajh kar YouTube pe '${command.query}' search kar diya hai… ho gaya ji ✅"
+                        "Ji, '${command.query}' search kar diya ✅"
                 }
             is PhoneActionCommand.SearchGoogle ->
-                "Ji… soch samajh kar Google pe '${command.query}' search kar diya hai… ho gaya ji ✅"
+                "Ji, Google pe search kar diya ✅"
             is PhoneActionCommand.OpenWebsite ->
-                "Ji… ${command.url} website khol rahi hun… ho gaya ji ✅"
+                "Ji, website khol diya ✅"
             is PhoneActionCommand.CameraMediaAction ->
-                "Ji… camera chalu kar diya hai… ho gaya ji ✅"
+                "Ji, camera chalu kar diya ✅"
             is PhoneActionCommand.MultimediaAction ->
-                "Ji… media control execute kar diya… ho gaya ji ✅"
+                "Ji, ho gaya ✅"
             is PhoneActionCommand.ToggleTorch ->
-                "Ji… Torch ${if (command.enable) "ON" else "OFF"} kar di hai 🔦 Ho gaya ji ✅"
+                "Ji, torch ${if (command.enable) "on" else "off"} kar di ✅"
             is PhoneActionCommand.AdjustSystemLevel ->
-                "Ji… ${command.targetType.lowercase()} ${command.percent}% set kar di hai… ho gaya ji ✅"
+                "Ji, ${command.targetType.lowercase()} set kar diya ✅"
             is PhoneActionCommand.OpenSystemSettings ->
-                "Ji… ${command.settingType} open kar diya… ho gaya ji ✅"
+                "Ji, settings khol diya ✅"
             is PhoneActionCommand.OpenMaps ->
-                "Ji… Maps mein '${command.destination}' ka rasta nikaal diya hai… ho gaya ji ✅"
+                "Ji, maps khol diya ✅"
             is PhoneActionCommand.ShoppingAction ->
-                "Ji… ${command.store} khol kar '${command.query}' dikha diya ji ✅"
+                "Ji, ${command.store} khol diya ✅"
             is PhoneActionCommand.SendEmail ->
-                "Ji… ${command.to} ke liye email compose khol diya… ho gaya ji ✅"
+                "Ji, email khol diya ✅"
             is PhoneActionCommand.SetAlarmOrTimer ->
-                "Ji… ${command.badgeLabel} set kar diya… ho gaya ji ✅"
+                "Ji, set kar diya ✅"
             is PhoneActionCommand.AddCalendarEvent ->
-                "Ji… Calendar mein event save kar rahi hun… ho gaya ji ✅"
+                "Ji, event save kar diya ✅"
             is PhoneActionCommand.FileManagerAction ->
-                "Ji… File Manager khol diya… ho gaya ji ✅"
+                "Ji, file manager khol diya ✅"
             is PhoneActionCommand.HealthAction ->
-                "Ji… Health & Fitness tracker update kar diya… ho gaya ji ✅"
+                "Ji, update kar diya ✅"
             is PhoneActionCommand.SmartHomeAction ->
-                "Ji… Smart Home ${command.device} ${if (command.turnOn) "ON" else "OFF"} kar diya… ho gaya ji ✅"
+                "Ji, ${command.device} ${if (command.turnOn) "on" else "off"} kar diya ✅"
             is PhoneActionCommand.ScreenAction -> {
                 when (command.actionType) {
-                    "START_SHARE" -> "Ji… screen share on ho gaya ✅"
-                    "STOP_SHARE" -> "Ji… screen share off kar diya hai ✅"
+                    "START_SHARE" -> "Ji, screen share on ho gaya ✅"
+                    "STOP_SHARE" -> "Ji, screen share off kar diya ✅"
                     "READ_OCR" -> {
                         val liveText = JarvisAccessibilityService.liveScreenText.value.ifBlank { screenState.headlineText }
-                        "Ji… aapki live screen dekh rahi hun, screen pe likha hai — '$liveText'. Ho gaya ji ✅"
+                        "Ji, likha hai — '${liveText.take(50)}'"
                     }
                     "CLICK" -> when {
                         command.value.contains("View channel", ignoreCase = true) ->
-                            "Ji… AK EXPLOITS ka View Channel click kar diya hai 💕 Ho gaya ji ✅"
+                            "Ji, View Channel click kar diya ✅"
                         command.value.contains("video", ignoreCase = true) ->
-                            "Ji… screen pe '${command.value}' chala diya hai 🎬 Ho gaya ji ✅"
+                            "Ji, video chala diya 🎬 ✅"
                         else ->
-                            "Ji… screen dekh kar '${command.value}' pe click kar diya hai… ho gaya ji ✅"
+                            "Ji, click kar diya ✅"
                     }
-                    "SCROLL" -> "Ji… screen ${command.value.lowercase()} scroll kar diya… ho gaya ji ✅"
-                    "TYPE" -> "Ji… '${command.value}' type kar diya… ho gaya ji ✅"
-                    "NAVIGATE" -> "Ji… ${command.value.lowercase()} kar diya… ho gaya ji ✅"
-                    "RGB_BACKGROUND" -> "Ji… Background RGB Light ${command.value} kar di hai 🌈 Ho gaya ji ✅"
-                    else -> "Ji… screen action ho gaya ji ✅"
+                    "SCROLL" -> "Ji, scroll kar diya ✅"
+                    "TYPE" -> "Ji, type kar diya ✅"
+                    "NAVIGATE" -> when (command.value.uppercase()) {
+                        "HOME" -> "Ji, home screen khol diya ✅"
+                        "BACK" -> "Ji, back kar diya ✅"
+                        "RECENTS" -> "Ji, recent apps khol diya ✅"
+                        else -> "Ji, ho gaya ✅"
+                    }
+                    "RGB_BACKGROUND" -> "Ji, RGB light ${command.value} kar di ✅"
+                    else -> "Ji, ho gaya ✅"
                 }
             }
             is PhoneActionCommand.OpenCreatorTelegram ->
-                "Ji… AK EXPLOITS ka official Telegram channel khol diya hai… ho gaya ji ✅ 💕"
+                "Ji, AK EXPLOITS Telegram khol diya ✅"
             is PhoneActionCommand.OpenCreatorYouTube ->
-                "Ji… YouTube pe 'AK EXPLOITS' khol diya hai… ho gaya ji ✅ 💕"
+                "Ji, AK EXPLOITS YouTube khol diya ✅"
             is PhoneActionCommand.WakeStateChange ->
                 when (command.targetState) {
-                    "SLEEPING" -> "Theek hai ji… so jaati hun. 'JARVIS' bolna 💤"
-                    "CHUP_MODE" -> "Theek hai ji… chup ho jaati hun, par sunti rahoongi 🤫"
-                    "OFF" -> "Ji… background se standby pe ja rahi hun ✅"
-                    else -> "Ji… boliye, sun rahi hun 💕"
+                    "SLEEPING" -> "Theek hai ji, so jaati hun 💤"
+                    "CHUP_MODE" -> "Theek hai ji, chup ho jaati hun 🤫"
+                    "OFF" -> "Ji, standby pe ja rahi hun ✅"
+                    else -> "Ji, sun rahi hun 💕"
                 }
         }
     }

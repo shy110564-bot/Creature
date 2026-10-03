@@ -181,10 +181,10 @@ data class SixStepThought(
 
 data class VoiceSettings(
     val voicePreset: String = "Priya (ElevenLabs pMsXgVXv3BLzUgSXRplE)",
-    val speed: Float = 1.0f,
-    val pitch: Float = 1.04f,
+    val speed: Float = 0.85f,
+    val pitch: Float = 1.08f,
     val emotionIntensity: Float = 0.75f,
-    val stability: Float = 0.28f,
+    val stability: Float = 0.25f,
     val similarity: Float = 0.85f,
     val breathingEnabled: Boolean = true,
     val gigglesEnabled: Boolean = true,

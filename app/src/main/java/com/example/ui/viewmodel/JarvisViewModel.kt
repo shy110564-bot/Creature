@@ -582,6 +582,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         val text = rawInput.trim()
         if (text.isEmpty()) return
 
+        // RULE #1 & #2: Instantly stop speaking and process user command with ZERO delay
+        speechManager.stopSpeaking()
+
         viewModelScope.launch {
             autoExtractMemoryIfPresent(text)
 
@@ -597,7 +600,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             )
 
             _orbVisualState.value = OrbVisualState.THINKING_PURPLE
-            delay(280)
 
             val recent50 = repository.getRecent50Messages()
             val memoryList = repository.getMemoriesSnapshot()

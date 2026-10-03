@@ -32,6 +32,8 @@ class JarvisRepository(
         val VOICE_SPEED = floatPreferencesKey("voice_speed")
         val VOICE_PITCH = floatPreferencesKey("voice_pitch")
         val VOICE_EMOTION = floatPreferencesKey("voice_emotion")
+        val VOICE_STABILITY = floatPreferencesKey("voice_stability")
+        val VOICE_SIMILARITY = floatPreferencesKey("voice_similarity")
         val BREATHING = booleanPreferencesKey("voice_breathing")
         val GIGGLES = booleanPreferencesKey("voice_giggles")
         val PAUSES = booleanPreferencesKey("voice_pauses")
@@ -61,9 +63,11 @@ class JarvisRepository(
     val voiceSettingsFlow: Flow<VoiceSettings> = context.dataStore.data.map { prefs ->
         VoiceSettings(
             voicePreset = prefs[Keys.VOICE_PRESET] ?: "Priya (ElevenLabs pMsXgVXv3BLzUgSXRplE)",
-            speed = prefs[Keys.VOICE_SPEED] ?: 1.0f,
-            pitch = prefs[Keys.VOICE_PITCH] ?: 1.04f,
+            speed = prefs[Keys.VOICE_SPEED] ?: 0.85f,
+            pitch = prefs[Keys.VOICE_PITCH] ?: 1.08f,
             emotionIntensity = prefs[Keys.VOICE_EMOTION] ?: 0.75f,
+            stability = prefs[Keys.VOICE_STABILITY] ?: 0.25f,
+            similarity = prefs[Keys.VOICE_SIMILARITY] ?: 0.85f,
             breathingEnabled = prefs[Keys.BREATHING] ?: true,
             gigglesEnabled = prefs[Keys.GIGGLES] ?: true,
             pausesEnabled = prefs[Keys.PAUSES] ?: true,
